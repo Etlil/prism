@@ -1,47 +1,32 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
-import TheWelcome from './components/TheWelcome.vue'
+import { useAuth } from '@/composables/useAuth'
+import AppNav from '@/components/AppNav.vue'
+
+const { auth } = useAuth()
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-    </div>
-  </header>
-
-  <main>
-    <TheWelcome />
-  </main>
+  <div class="shell" :class="{ 'shell--bare': !auth.isLoggedIn }">
+    <AppNav v-if="auth.isLoggedIn" />
+    <main class="content">
+      <!-- router-view swaps in whichever view matches the current route -->
+      <RouterView />
+    </main>
+  </div>
 </template>
 
 <style scoped>
-header {
-  line-height: 1.5;
+.shell {
+  display: flex;
 }
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 2rem;
 }
 
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
+.shell--bare .content {
+  padding: 0;
 }
 </style>
