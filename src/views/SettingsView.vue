@@ -1,7 +1,7 @@
 <script setup>
-import { useTheme, accentOptions, fontOptions } from '@/composables/useTheme'
+import { useTheme, accentOptions, fontOptions, fontSizeOptions } from '@/composables/useTheme'
 
-const { theme, toggleMode, setAccent, setFont } = useTheme()
+const { theme, toggleMode, setAccent, setFont, setFontSize } = useTheme()
 </script>
 
 <template>
@@ -41,6 +41,22 @@ const { theme, toggleMode, setAccent, setFont } = useTheme()
           :aria-label="a.name"
           @click="setAccent(a.value)"
         ></button>
+      </div>
+    </section>
+
+    <section class="group">
+      <h2>Font size</h2>
+      <div class="sizes">
+        <button
+          v-for="size in fontSizeOptions"
+          :key="size.value"
+          type="button"
+          class="size-option"
+          :class="{ selected: theme.fontSize === size.value }"
+          @click="setFontSize(size.value)"
+        >
+          {{ size.name }}
+        </button>
       </div>
     </section>
 
@@ -147,6 +163,28 @@ h1 {
 .swatch.selected {
   border-color: var(--color-text);
   box-shadow: 0 0 0 2px var(--color-bg);
+}
+
+.sizes {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.size-option {
+  flex: 1;
+  padding: 0.7rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.size-option.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .fonts {

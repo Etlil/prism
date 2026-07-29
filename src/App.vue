@@ -29,4 +29,15 @@ const { auth } = useAuth()
 .shell--bare .content {
   padding: 0;
 }
+
+@media (max-width: 768px) {
+  .content {
+    /* Extra top padding clears the fixed hamburger button. */
+    padding: 4rem 1rem 1.5rem;
+  }
+
+  .shell--bare .content {
+    padding: 0;
+  }
+}
 </style>

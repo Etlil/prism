@@ -7,13 +7,27 @@ const username = ref('')
 const email = ref('')
 const password = ref('')
 const error = ref('')
+const info = ref('')
+const loading = ref(false)
 const { signup } = useAuth()
 const router = useRouter()
 
-function handleSubmit() {
-  const result = signup(username.value, email.value, password.value)
+async function handleSubmit() {
+  error.value = ''
+  info.value = ''
+  loading.value = true
+  const result = await signup(username.value, email.value, password.value)
+  loading.value = false
+
   if (!result.success) {
     error.value = result.error
+    return
+  }
+  // Supabase's default project setting requires clicking a confirmation
+  // email before the account can log in — there's no session yet to send
+  // them straight to the dashboard with.
+  if (result.needsConfirmation) {
+    info.value = 'Account created — check your email to confirm it, then log in.'
     return
   }
   router.push({ name: 'dashboard' })
@@ -42,8 +56,11 @@ function handleSubmit() {
       </label>
 
       <p v-if="error" class="error">{{ error }}</p>
+      <p v-if="info" class="info">{{ info }}</p>
 
-      <button class="submit" type="submit">Sign up</button>
+      <button class="submit" type="submit" :disabled="loading">
+        {{ loading ? 'Signing up…' : 'Sign up' }}
+      </button>
 
       <p class="hint">
         Already have an account? <RouterLink class="link" to="/login">Log in</RouterLink>
@@ -124,6 +141,11 @@ function handleSubmit() {
   filter: brightness(1.05);
 }
 
+.submit:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
 .hint {
   text-align: center;
   font-size: 0.75rem;
@@ -134,6 +156,12 @@ function handleSubmit() {
   text-align: center;
   font-size: 0.82rem;
   color: #e2574c;
+}
+
+.info {
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--accent);
 }
 
 .link {

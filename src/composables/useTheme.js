@@ -14,11 +14,23 @@ export const accentOptions = [
   { name: 'Sky', value: '#3b82f6' },
 ]
 
+// Applied to the root element, so every rem-based size in the app scales with
+// it. Medium is 16px, the browser default, which keeps the current look.
+export const fontSizeOptions = [
+  { name: 'Small', value: '14px' },
+  { name: 'Medium', value: '16px' },
+  { name: 'Large', value: '18px' },
+]
+
+// First entry is the default for anyone who hasn't picked a font yet.
+// The custom families are declared as @font-face rules in assets/base.css.
 export const fontOptions = [
-  { name: 'System', value: "-apple-system, 'Segoe UI', Roboto, sans-serif" },
-  { name: 'Serif', value: "'Iowan Old Style', Georgia, 'Times New Roman', serif" },
-  { name: 'Rounded', value: "'Baloo 2', 'Comic Sans MS', ui-rounded, sans-serif" },
-  { name: 'Mono', value: "'Cascadia Code', 'Courier New', monospace" },
+  { name: 'Times New Roman', value: "'Times New Roman', Times, serif" },
+  { name: 'Baby Doll', value: "'Baby Doll', cursive" },
+  { name: 'Elegant Bloom', value: "'Elegant Bloom', cursive" },
+  { name: 'Internet Friends', value: "'Internet Friends', sans-serif" },
+  { name: 'Magic Crush', value: "'Magic Crush', cursive" },
+  { name: 'Omori', value: "'Omori', sans-serif" },
 ]
 
 function loadSaved() {
@@ -37,6 +49,7 @@ const theme = reactive({
   mode: saved?.mode ?? 'light',
   accent: saved?.accent ?? accentOptions[0].value,
   font: saved?.font ?? fontOptions[0].value,
+  fontSize: saved?.fontSize ?? fontSizeOptions[1].value,
 })
 
 function applyToDocument() {
@@ -44,6 +57,7 @@ function applyToDocument() {
   root.setAttribute('data-theme', theme.mode)
   root.style.setProperty('--accent', theme.accent)
   root.style.setProperty('--font-family', theme.font)
+  root.style.setProperty('--font-size-base', theme.fontSize)
 }
 
 // Runs once immediately (because `immediate: true`) to paint the saved theme
@@ -66,5 +80,9 @@ export function useTheme() {
     theme.font = value
   }
 
-  return { theme, toggleMode, setAccent, setFont }
+  function setFontSize(value) {
+    theme.fontSize = value
+  }
+
+  return { theme, toggleMode, setAccent, setFont, setFontSize }
 }

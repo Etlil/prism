@@ -1,3 +1,35 @@
+/* Custom fonts from public/fonts. Spaces in the filenames are written as %20
+   so the URLs stay valid regardless of how the CSS is processed. */
+@font-face {
+  font-family: 'Baby Doll';
+  src: url('/fonts/Baby%20Doll.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Elegant Bloom';
+  src: url('/fonts/Elegant%20Bloom.otf') format('opentype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Internet Friends';
+  src: url('/fonts/Internet%20Friends.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Magic Crush';
+  src: url('/fonts/Magic%20Crush.otf') format('opentype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Omori';
+  src: url('/fonts/omori_font.ttf') format('truetype');
+  font-display: swap;
+}
+
 /* Base palette + light/dark tokens. --accent and --font-family are also set
    here as fallbacks, but useTheme.js overrides both on <html> at runtime via
    style.setProperty, so a user's saved choice always wins over these. */
@@ -10,7 +42,8 @@
   --color-text-soft: rgba(31, 27, 36, 0.62);
 
   --accent: #e0607e;
-  --font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-family: 'Times New Roman', Times, serif;
+  --font-size-base: 16px;
 
   --radius-sm: 8px;
   --radius-md: 14px;
@@ -34,6 +67,12 @@
   font-weight: normal;
 }
 
+/* Set on the root because rem units resolve against this element — putting it
+   on body would leave every rem-based size in the app unchanged. */
+:root {
+  font-size: var(--font-size-base);
+}
+
 body {
   min-height: 100vh;
   color: var(--color-text);
@@ -43,7 +82,9 @@ body {
     background-color 0.3s;
   line-height: 1.6;
   font-family: var(--font-family);
-  font-size: 15px;
+  /* 15/16 — relative so it scales with the root size instead of pinning body
+     text to a fixed pixel value. */
+  font-size: 0.9375rem;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

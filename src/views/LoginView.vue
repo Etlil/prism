@@ -6,13 +6,16 @@ import { useAuth } from '@/composables/useAuth'
 const email = ref('')
 const password = ref('')
 const error = ref('')
+const loading = ref(false)
 const { login } = useAuth()
 const router = useRouter()
 
-// Validated against the fake user table in fakeUsers.js. Still no Supabase
-// call — real magic-link auth is Phase 5 in CLAUDE.md.
-function handleSubmit() {
-  const result = login(email.value, password.value)
+async function handleSubmit() {
+  error.value = ''
+  loading.value = true
+  const result = await login(email.value, password.value)
+  loading.value = false
+
   if (!result.success) {
     error.value = result.error
     return
@@ -39,7 +42,9 @@ function handleSubmit() {
 
       <p v-if="error" class="error">{{ error }}</p>
 
-      <button class="submit" type="submit">Log in</button>
+      <button class="submit" type="submit" :disabled="loading">
+        {{ loading ? 'Logging in…' : 'Log in' }}
+      </button>
 
       <p class="hint">
         No account yet? <RouterLink class="link" to="/signup">Sign up</RouterLink>
@@ -118,6 +123,11 @@ function handleSubmit() {
 
 .submit:hover {
   filter: brightness(1.05);
+}
+
+.submit:disabled {
+  opacity: 0.7;
+  cursor: default;
 }
 
 .hint {

@@ -1,9 +1,11 @@
 import { reactive } from 'vue'
 import { moodById } from './moods'
 
-// Gradients stand in for real photos until Supabase Storage exists (Phase 3+).
-// Real entries will have `photoUrl` pointing at a bucket file instead.
-const placeholderPhotos = [
+export const MAX_PHOTOS = 5
+
+// Gradients stand in for real photos until Supabase Storage exists (Phase 8).
+// Uploaded photos get a `url` instead, from URL.createObjectURL.
+const seedGradients = [
   'linear-gradient(135deg, #f6d365, #fda085)',
   'linear-gradient(135deg, #a1c4fd, #c2e9fb)',
   'linear-gradient(135deg, #d4fc79, #96e6a1)',
@@ -12,93 +14,101 @@ const placeholderPhotos = [
   'linear-gradient(135deg, #667eea, #764ba2)',
 ]
 
-export const reactionTypes = [
-  { key: 'like', emoji: '👍' },
-  { key: 'love', emoji: '❤️' },
-  { key: 'haha', emoji: '😆' },
-  { key: 'wow', emoji: '😮' },
-  { key: 'sad', emoji: '😢' },
-]
+let nextPhotoId = 100
 
-const raw = [
-  {
-    id: 1,
-    isoDate: '2026-01-12',
-    moodId: 'joyful',
-    note: 'Beach day with the old crew',
+// Keyed by date so one day has exactly one entry — mirrors the
+// UNIQUE (user_id, entry_date) constraint in the real schema.
+export const entries = reactive({
+  '2026-07-29': {
+    isoDate: '2026-07-29',
+    journalTitle: 'A slow start',
     journalText:
-      "Didn't expect to run into half the group from college but we ended up staying until the tide came in. Feels like nothing changed.",
-    photo: placeholderPhotos[0],
+      'Woke up late, made coffee, and actually sat down to work on the app for a few hours. Good day.',
+    photos: [
+      { id: 1, gradient: seedGradients[0], caption: 'Morning coffee', moodId: 'content' },
+      { id: 2, gradient: seedGradients[2], caption: 'Walk to the park', moodId: 'joyful' },
+    ],
   },
-  {
-    id: 2,
-    isoDate: '2026-02-03',
-    moodId: 'creative',
-    note: 'Finally finished the painting',
-    journalText:
-      'Three weeks of picking it up and putting it down again, and tonight it just clicked. Going to let it dry and frame it this weekend.',
-    photo: placeholderPhotos[1],
+  '2026-07-28': {
+    isoDate: '2026-07-28',
+    journalTitle: 'Too many meetings',
+    journalText: 'Long day at work. Too many meetings and not enough actual time to build anything.',
+    photos: [{ id: 3, gradient: seedGradients[3], caption: 'Desk at 9pm', moodId: 'anxious' }],
   },
-  {
-    id: 3,
-    isoDate: '2026-03-21',
-    moodId: 'content',
-    note: 'Slow Sunday, no plans',
-    journalText:
-      'Made coffee, read on the balcony, did not look at my phone until noon. More of these, please.',
-    photo: placeholderPhotos[2],
+  '2026-07-25': {
+    isoDate: '2026-07-25',
+    journalTitle: 'Finally finished it',
+    journalText: 'Finished the painting I started weeks ago, then went out for dinner with family.',
+    photos: [
+      { id: 4, gradient: seedGradients[4], caption: 'The finished piece', moodId: 'creative' },
+      { id: 5, gradient: seedGradients[1], caption: 'Dinner out', moodId: 'joyful' },
+      { id: 6, gradient: seedGradients[5], caption: 'Walking home', moodId: 'content' },
+    ],
   },
-  {
-    id: 4,
-    isoDate: '2026-04-09',
-    moodId: 'anxious',
-    note: 'Presentation went okay I think',
-    journalText:
-      "Rehearsed too much and still blanked on slide four. Nobody seemed to notice. My hands were shaking the whole time though.",
-    photo: placeholderPhotos[3],
-  },
-  {
-    id: 5,
-    isoDate: '2026-05-17',
-    moodId: 'joyful',
-    note: "Mom's birthday dinner",
-    journalText:
-      'Got the whole family in one room for the first time since the holidays. She cried a little when we brought out the cake.',
-    photo: placeholderPhotos[4],
-  },
-  {
-    id: 6,
-    isoDate: '2026-06-30',
-    moodId: 'sad',
-    note: 'Said bye to the apartment',
-    journalText:
-      'Handed the keys back today. Four years of memories in one small place. Onward, but it stings more than I expected.',
-    photo: placeholderPhotos[5],
-  },
-]
+})
 
-// reactive() on an array makes both the array itself AND every property on
-// each object inside it trackable — so a template that reads entry.reactions.like
-// re-renders automatically when we mutate it, no extra wiring needed.
-export const entries = reactive(
-  raw.map((e) => ({
-    ...e,
-    mood: moodById(e.moodId),
-    reactions: reactionTypes.reduce((acc, r) => {
-      acc[r.key] = Math.floor(Math.random() * 12)
-      return acc
-    }, {}),
-    myReaction: null,
-  })),
-)
+export function getEntry(isoDate) {
+  return entries[isoDate]
+}
 
-export function toggleReaction(entry, key) {
-  if (entry.myReaction === key) {
-    entry.reactions[key]--
-    entry.myReaction = null
-  } else {
-    if (entry.myReaction) entry.reactions[entry.myReaction]--
-    entry.reactions[key]++
-    entry.myReaction = key
+function ensureEntry(isoDate) {
+  if (!entries[isoDate]) {
+    entries[isoDate] = { isoDate, journalTitle: '', journalText: '', photos: [] }
   }
+  return entries[isoDate]
+}
+
+export function addPhotos(isoDate, files) {
+  const entry = ensureEntry(isoDate)
+  const room = MAX_PHOTOS - entry.photos.length
+
+  for (const file of Array.from(files).slice(0, room)) {
+    entry.photos.push({
+      id: nextPhotoId++,
+      url: URL.createObjectURL(file),
+      caption: '',
+      moodId: null,
+    })
+  }
+  return entry.photos.length
+}
+
+export function removePhoto(isoDate, photoId) {
+  const entry = entries[isoDate]
+  if (!entry) return
+
+  const index = entry.photos.findIndex((p) => p.id === photoId)
+  if (index === -1) return
+
+  // Uploaded photos hold a blob URL that the browser keeps alive until it's
+  // explicitly released.
+  if (entry.photos[index].url) URL.revokeObjectURL(entry.photos[index].url)
+  entry.photos.splice(index, 1)
+}
+
+export function setJournal(isoDate, { title, text }) {
+  const entry = ensureEntry(isoDate)
+  entry.journalTitle = title
+  entry.journalText = text
+}
+
+export function setPhotoCaption(photo, caption) {
+  photo.caption = caption.trim()
+}
+
+export function setPhotoMood(photo, moodId) {
+  photo.moodId = photo.moodId === moodId ? null : moodId
+}
+
+// The colours that make up one day's pixel. A day with three photos tagged
+// joyful, joyful, sad gives a pixel that is two-thirds joyful — which is what
+// the pie slices on the dashboard are drawn from.
+export function moodColorsFor(isoDate) {
+  const entry = entries[isoDate]
+  if (!entry) return []
+
+  return entry.photos
+    .filter((p) => p.moodId)
+    .map((p) => moodById(p.moodId)?.colorHex)
+    .filter(Boolean)
 }

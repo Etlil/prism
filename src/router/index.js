@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuth } from '@/composables/useAuth'
+import { useAuth, authReady } from '@/composables/useAuth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -41,10 +41,12 @@ const router = createRouter({
   ],
 })
 
-// Fake gate for now: no Supabase session to check yet (that's Phase 5), just
-// the in-memory flag from useAuth. Every navigation runs through this before
-// the new page renders.
-router.beforeEach((to) => {
+// Real Supabase session check now. authReady resolves once the initial
+// getSession() call has finished — awaiting it (even after it's already
+// resolved, that's instant) stops the very first navigation from bouncing
+// to /login before we've had a chance to see an existing session.
+router.beforeEach(async (to) => {
+  await authReady
   const { auth } = useAuth()
 
   if (to.meta.requiresAuth && !auth.isLoggedIn) {

@@ -2,17 +2,22 @@
 import { computed } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { year } from '@/data/fakeYear'
+import { moodColorsFor } from '@/data/fakeEntries'
 
-const { auth } = useAuth()
+const { auth, displayName } = useAuth()
 
-const loggedCount = computed(() => year.filter((d) => d.mood).length)
+function isLogged(day) {
+  return moodColorsFor(day.isoDate).length > 0 || day.baseMoodIds.length > 0
+}
+
+const loggedCount = computed(() => year.filter(isLogged).length)
 
 // Longest run of consecutive logged days, scanning oldest to newest.
 const longestStreak = computed(() => {
   let longest = 0
   let current = 0
   for (const day of year) {
-    if (day.mood) {
+    if (isLogged(day)) {
       current++
       longest = Math.max(longest, current)
     } else {
@@ -30,10 +35,10 @@ const longestStreak = computed(() => {
     </header>
 
     <section class="profile-card">
-      <div class="avatar">{{ auth.currentUser?.username.charAt(0).toUpperCase() || '?' }}</div>
+      <div class="avatar">{{ displayName.charAt(0).toUpperCase() || '?' }}</div>
       <div>
-        <h2>{{ auth.currentUser?.username }}</h2>
-        <p class="joined">{{ auth.currentUser?.email }}</p>
+        <h2>{{ displayName }}</h2>
+        <p class="joined">{{ auth.user?.email }}</p>
       </div>
     </section>
 
