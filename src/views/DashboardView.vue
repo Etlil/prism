@@ -1,9 +1,11 @@
 <script setup>
 import { computed } from 'vue'
 import { year, todayIso } from '@/data/fakeYear'
-import { moods, moodById } from '@/data/moods'
+import { useMoods } from '@/composables/useMoods'
 import { moodColorsFor } from '@/data/fakeEntries'
 import MoodCell from '@/components/MoodCell.vue'
+
+const { activeMoods } = useMoods()
 
 const monthLabels = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']
 
@@ -28,15 +30,20 @@ const rows = computed(() =>
 )
 
 // Moods tagged on journal photos win; days without an entry fall back to the
-// generated fake moods. Reading the reactive `entries` here means tagging a
-// photo repaints that day's pixel straight away.
+// generated fake ones. Both read from the live mood list, so renaming or
+// recolouring a mood in Settings repaints the grid immediately.
 function colorsFor(day) {
   if (!day) return []
 
   const fromJournal = moodColorsFor(day.isoDate)
   if (fromJournal.length) return fromJournal
 
-  return day.baseMoodIds.map((id) => moodById(id)?.colorHex).filter(Boolean)
+  const list = activeMoods.value
+  if (!list.length) return []
+
+  // The slots are arbitrary numbers, so this maps them onto however many moods
+  // the user actually has — add or archive one and the fake days redistribute.
+  return day.moodSlots.map((slot) => list[slot % list.length].color_hex)
 }
 
 function labelFor(day) {
@@ -72,8 +79,8 @@ const currentStreak = computed(() => {
         </p>
       </div>
       <ul class="legend">
-        <li v-for="mood in moods" :key="mood.id">
-          <span class="swatch" :style="{ background: mood.colorHex }"></span>
+        <li v-for="mood in activeMoods" :key="mood.id">
+          <span class="swatch" :style="{ background: mood.color_hex }"></span>
           {{ mood.label }}
         </li>
       </ul>

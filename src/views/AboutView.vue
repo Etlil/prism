@@ -7,7 +7,7 @@ import { moodColorsFor } from '@/data/fakeEntries'
 const { auth, displayName } = useAuth()
 
 function isLogged(day) {
-  return moodColorsFor(day.isoDate).length > 0 || day.baseMoodIds.length > 0
+  return moodColorsFor(day.isoDate).length > 0 || day.moodSlots.length > 0
 }
 
 const loggedCount = computed(() => year.filter(isLogged).length)
@@ -31,7 +31,7 @@ const longestStreak = computed(() => {
 <template>
   <div class="about">
     <header class="page-header">
-      <h1>About Me</h1>
+      <h1>About</h1>
     </header>
 
     <section class="profile-card">

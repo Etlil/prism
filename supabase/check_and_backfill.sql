@@ -23,18 +23,18 @@ where u.id = p.id
   and (p.display_name is null or p.display_name = '');
 
 -- 4. Give everyone their six default moods, if they don't have any.
-insert into public.moods (user_id, label, color_hex, sort_order)
-select u.id, m.label, m.color_hex, m.sort_order
+insert into public.moods (user_id, label, emoji, color_hex, sort_order)
+select u.id, m.label, m.emoji, m.color_hex, m.sort_order
 from auth.users u
 cross join (
   values
-    ('Content',  '#b19cd9', 0),
-    ('Creative', '#f2a6c9', 1),
-    ('Joyful',   '#f5d547', 2),
-    ('Angry',    '#e2574c', 3),
-    ('Anxious',  '#6fcf97', 4),
-    ('Sad',      '#2e3a87', 5)
-) as m(label, color_hex, sort_order)
+    ('Content',  '😌', '#b19cd9', 0),
+    ('Creative', '🎨', '#f2a6c9', 1),
+    ('Joyful',   '😄', '#f5d547', 2),
+    ('Angry',    '😠', '#e2574c', 3),
+    ('Anxious',  '😰', '#6fcf97', 4),
+    ('Sad',      '😢', '#2e3a87', 5)
+) as m(label, emoji, color_hex, sort_order)
 where not exists (
   select 1 from public.moods where user_id = u.id
 );

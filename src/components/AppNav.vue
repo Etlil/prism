@@ -2,6 +2,11 @@
 import { ref, watch } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useRouter, useRoute } from 'vue-router'
+import IconDashboard from '@/components/icons/IconDashboard.vue'
+import IconJournal from '@/components/icons/IconJournal.vue'
+import IconSettings from '@/components/icons/IconSettings.vue'
+import IconAbout from '@/components/icons/IconAbout.vue'
+import IconLogout from '@/components/icons/IconLogout.vue'
 
 const { displayName, logout } = useAuth()
 const router = useRouter()
@@ -49,28 +54,28 @@ async function handleLogout() {
     <ul class="links">
       <li>
         <RouterLink to="/" class="nav-link">
-          <span class="icon">◱</span> Dashboard
+          <IconDashboard class="icon" /> Dashboard
         </RouterLink>
       </li>
       <li>
         <RouterLink to="/journal" class="nav-link">
-          <span class="icon">🖼</span> Photo Journal
+          <IconJournal class="icon" /> Photo Journal
         </RouterLink>
       </li>
       <li>
         <RouterLink to="/settings" class="nav-link">
-          <span class="icon">⚙</span> Settings
+          <IconSettings class="icon" /> Settings
         </RouterLink>
       </li>
       <li>
         <RouterLink to="/about" class="nav-link">
-          <span class="icon">◍</span> About Me
+          <IconAbout class="icon" /> About
         </RouterLink>
       </li>
     </ul>
 
     <button class="logout" type="button" @click="handleLogout">
-      <span class="icon">⏻</span> Log out
+      <IconLogout class="icon" /> Log out
     </button>
   </nav>
 </template>
@@ -183,10 +188,12 @@ async function handleLogout() {
   color: white;
 }
 
+/* The SVGs use fill="currentColor", so they inherit the link's colour and turn
+   white along with the text on the active item. */
 .icon {
-  font-size: 1.1rem;
-  width: 1.2rem;
-  text-align: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .logout {

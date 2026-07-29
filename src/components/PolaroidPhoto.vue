@@ -1,7 +1,9 @@
 <script setup>
 import { ref, nextTick } from 'vue'
-import { moods } from '@/data/moods'
+import { useMoods } from '@/composables/useMoods'
 import { setPhotoMood, setPhotoCaption } from '@/data/fakeEntries'
+
+const { activeMoods } = useMoods()
 
 const props = defineProps({
   photo: { type: Object, required: true },
@@ -90,7 +92,7 @@ const tilt = (props.photo.id % 2 === 0 ? 1 : -1) * (1 + ((props.photo.id * 7) % 
         <!-- Inside the card frame, below the photo — not overlaying it. -->
         <div class="moods">
           <button
-            v-for="mood in moods"
+            v-for="mood in activeMoods"
             :key="mood.id"
             type="button"
             class="mood"

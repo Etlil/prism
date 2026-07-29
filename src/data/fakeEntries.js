@@ -1,5 +1,7 @@
-import { reactive } from 'vue'
-import { moodById } from './moods'
+import { reactive, watch } from 'vue'
+import { useMoods } from '@/composables/useMoods'
+
+const { activeMoods, moodById } = useMoods()
 
 export const MAX_PHOTOS = 5
 
@@ -25,27 +27,52 @@ export const entries = reactive({
     journalText:
       'Woke up late, made coffee, and actually sat down to work on the app for a few hours. Good day.',
     photos: [
-      { id: 1, gradient: seedGradients[0], caption: 'Morning coffee', moodId: 'content' },
-      { id: 2, gradient: seedGradients[2], caption: 'Walk to the park', moodId: 'joyful' },
+      { id: 1, gradient: seedGradients[0], caption: 'Morning coffee', moodId: null, seedMoodLabel: 'Content' },
+      { id: 2, gradient: seedGradients[2], caption: 'Walk to the park', moodId: null, seedMoodLabel: 'Joyful' },
     ],
   },
   '2026-07-28': {
     isoDate: '2026-07-28',
     journalTitle: 'Too many meetings',
     journalText: 'Long day at work. Too many meetings and not enough actual time to build anything.',
-    photos: [{ id: 3, gradient: seedGradients[3], caption: 'Desk at 9pm', moodId: 'anxious' }],
+    photos: [{ id: 3, gradient: seedGradients[3], caption: 'Desk at 9pm', moodId: null, seedMoodLabel: 'Anxious' }],
   },
   '2026-07-25': {
     isoDate: '2026-07-25',
     journalTitle: 'Finally finished it',
     journalText: 'Finished the painting I started weeks ago, then went out for dinner with family.',
     photos: [
-      { id: 4, gradient: seedGradients[4], caption: 'The finished piece', moodId: 'creative' },
-      { id: 5, gradient: seedGradients[1], caption: 'Dinner out', moodId: 'joyful' },
-      { id: 6, gradient: seedGradients[5], caption: 'Walking home', moodId: 'content' },
+      { id: 4, gradient: seedGradients[4], caption: 'The finished piece', moodId: null, seedMoodLabel: 'Creative' },
+      { id: 5, gradient: seedGradients[1], caption: 'Dinner out', moodId: null, seedMoodLabel: 'Joyful' },
+      { id: 6, gradient: seedGradients[5], caption: 'Walking home', moodId: null, seedMoodLabel: 'Content' },
     ],
   },
 })
+
+// The seeded photos above name their mood by label, because real mood ids are
+// uuids that don't exist until the user's moods load. This swaps each label for
+// the matching real id once, so everything downstream deals only in real ids.
+watch(
+  activeMoods,
+  (list) => {
+    if (!list.length) return
+
+    for (const entry of Object.values(entries)) {
+      for (const photo of entry.photos) {
+        if (photo.moodId || !photo.seedMoodLabel) continue
+
+        const match = list.find(
+          (mood) => mood.label.toLowerCase() === photo.seedMoodLabel.toLowerCase(),
+        )
+        if (match) {
+          photo.moodId = match.id
+          photo.seedMoodLabel = null
+        }
+      }
+    }
+  },
+  { immediate: true },
+)
 
 export function getEntry(isoDate) {
   return entries[isoDate]
@@ -109,6 +136,6 @@ export function moodColorsFor(isoDate) {
 
   return entry.photos
     .filter((p) => p.moodId)
-    .map((p) => moodById(p.moodId)?.colorHex)
+    .map((p) => moodById(p.moodId)?.color_hex)
     .filter(Boolean)
 }

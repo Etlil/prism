@@ -1,4 +1,3 @@
-import { moods } from './moods'
 import { toIsoDate } from '@/lib/dates'
 
 const YEAR = 2026
@@ -9,9 +8,18 @@ function daysInYear(year) {
   return Math.round((end - start) / (1000 * 60 * 60 * 24))
 }
 
-// Built once at module load, not inside a function — so every component that
-// imports `year` sees the same fake days instead of a fresh random set on
-// every re-render.
+// Deterministic stand-in for Math.random. Seeding off the date means the fake
+// grid looks the same on every reload instead of reshuffling, and it lets the
+// mood slots below be plain numbers rather than ids that would have to match
+// whatever moods the user actually has.
+function hash(text) {
+  let value = 0
+  for (const char of text) {
+    value = (value * 31 + char.charCodeAt(0)) >>> 0
+  }
+  return value
+}
+
 const today = new Date()
 const total = daysInYear(YEAR)
 
@@ -19,23 +27,21 @@ export const todayIso = toIsoDate(today)
 
 export const year = Array.from({ length: total }, (_, i) => {
   const date = new Date(YEAR, 0, 1 + i)
+  const isoDate = toIsoDate(date)
   const isFuture = date > today
+  const seed = hash(isoDate)
 
   // Roughly one day in six is left blank, so the grid has gaps like a real
   // year would — and so the streak count on the dashboard means something.
-  const skipped = Math.random() < 0.17
+  const skipped = seed % 100 < 17
 
-  // One to three moods per day, so the dashboard shows a mix of solid pixels
-  // and pie-sliced ones. Real days come from journal photos instead.
-  const count = 1 + Math.floor(Math.random() * 3)
-  const baseMoodIds =
+  // One to three moods per day. These are arbitrary numbers, not mood ids —
+  // the dashboard maps them onto however many moods the user actually has.
+  const slotCount = 1 + (seed % 3)
+  const moodSlots =
     isFuture || skipped
       ? []
-      : Array.from({ length: count }, () => moods[Math.floor(Math.random() * moods.length)].id)
+      : Array.from({ length: slotCount }, (_, k) => hash(`${isoDate}-${k}`))
 
-  return {
-    date,
-    isoDate: toIsoDate(date),
-    baseMoodIds,
-  }
+  return { date, isoDate, moodSlots }
 })

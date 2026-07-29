@@ -1,5 +1,6 @@
 <script setup>
 import { useTheme, accentOptions, fontOptions, fontSizeOptions } from '@/composables/useTheme'
+import MoodEditor from '@/components/MoodEditor.vue'
 
 const { theme, toggleMode, setAccent, setFont, setFontSize } = useTheme()
 </script>
@@ -10,6 +11,14 @@ const { theme, toggleMode, setAccent, setFont, setFontSize } = useTheme()
       <h1>Settings</h1>
       <p class="subtitle">Changes apply immediately and are remembered next time.</p>
     </header>
+
+    <section class="group">
+      <h2>Moods</h2>
+      <p class="group-note">
+        Your mood list. Renaming or recolouring one updates every pixel that uses it.
+      </p>
+      <MoodEditor />
+    </section>
 
     <section class="group">
       <h2>Appearance</h2>
@@ -81,7 +90,7 @@ const { theme, toggleMode, setAccent, setFont, setFontSize } = useTheme()
 
 <style scoped>
 .settings {
-  max-width: 500px;
+  max-width: 560px;
 }
 
 .page-header {
@@ -105,6 +114,12 @@ h1 {
 .group h2 {
   font-size: 0.95rem;
   margin-bottom: 0.9rem;
+}
+
+.group-note {
+  font-size: 0.8rem;
+  color: var(--color-text-soft);
+  margin: -0.6rem 0 0.8rem;
 }
 
 .mode-toggle {
