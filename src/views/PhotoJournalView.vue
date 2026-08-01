@@ -1,21 +1,92 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import DateStrip from '@/components/DateStrip.vue'
 import PolaroidPhoto from '@/components/PolaroidPhoto.vue'
-import { getEntry, addPhotos, removePhoto, setJournal, MAX_PHOTOS } from '@/data/fakeEntries'
+import { useMoods } from '@/composables/useMoods'
+import { useEntries } from '@/composables/useEntries'
+import { useVault } from '@/composables/useVault'
 import { toIsoDate } from '@/lib/dates'
+
+const { activeMoods, loadMoods } = useMoods()
+// Signing in opens the journal with no prompt. This is false only when the key
+// isn't available in this browser — a session restored from before encryption
+// existed, or a password reset.
+const { isReady, vault } = useVault()
+const {
+  entries,
+  MAX_PHOTOS,
+  loadYear,
+  signPhotosFor,
+  setDayMood,
+  savePhotoJournal,
+  addPhotos,
+  removePhoto,
+  setPhotoCaption,
+  setPhotoMood,
+  decryptEntry,
+  isEditable,
+  clearError,
+} = useEntries()
 
 const selectedDate = ref(toIsoDate(new Date()))
 const fileInput = ref(null)
 const index = ref(0)
+const uploading = ref(false)
 
-const entry = computed(() => getEntry(selectedDate.value))
+// Reads through the reactive store rather than caching the entry object, so a
+// save anywhere else in the app shows up here immediately.
+const entry = computed(() => entries.byDate[selectedDate.value] ?? null)
 const photos = computed(() => entry.value?.photos ?? [])
 const remaining = computed(() => MAX_PHOTOS - photos.value.length)
 const currentPhoto = computed(() => photos.value[index.value])
+const dayMoodId = computed(() => entry.value?.mood_id ?? null)
 
-// Start from the first photo whenever the day changes.
-watch(selectedDate, () => (index.value = 0))
+// Only today can be written to. Everything else is browsable but locked.
+const editable = computed(() => isEditable(selectedDate.value))
+const isPast = computed(() => selectedDate.value < toIsoDate(new Date()))
+
+// Each photo carries its own journal, so these follow the photo being viewed
+// rather than the day.
+//
+// decryptEntry writes plaintext into *_plain, or null when the text is
+// encrypted and the vault is locked — which is how "nothing written" is told
+// apart from "can't be read right now".
+const journalTitle = computed(() => currentPhoto.value?.journal_title_plain ?? '')
+const journalText = computed(() => currentPhoto.value?.journal_text_plain ?? '')
+// Two ways to be locked: the stored text is ciphertext we can't open, or the
+// key isn't available at all so a save would have to be written in the clear.
+// Both hide the Edit button.
+const journalLocked = computed(
+  () =>
+    !isReady.value ||
+    (!!currentPhoto.value &&
+      (currentPhoto.value.journal_title_plain === null ||
+        currentPhoto.value.journal_text_plain === null)),
+)
+
+onMounted(async () => {
+  await Promise.all([loadMoods(), loadYear(new Date().getFullYear())])
+  await Promise.all([signPhotosFor(selectedDate.value), decryptEntry(selectedDate.value)])
+})
+
+// Start from the first photo whenever the day changes, then fetch signed URLs
+// and decrypt that day's journal — both are done per-day rather than for the
+// whole year.
+watch(selectedDate, async (iso) => {
+  index.value = 0
+  await Promise.all([signPhotosFor(iso), decryptEntry(iso)])
+})
+
+async function handleAddPhotos(event) {
+  uploading.value = true
+  await addPhotos(selectedDate.value, event.target.files)
+  // New rows arrive without the decrypted fields, so give them their (empty)
+  // *_plain values rather than leaving them undefined.
+  await decryptEntry(selectedDate.value)
+  uploading.value = false
+  // Clearing lets the same file be picked again if it was removed.
+  event.target.value = ''
+}
 
 // Keeps the index valid when the list shrinks — without this, deleting the
 // last photo would leave index pointing past the end of the array.
@@ -32,12 +103,6 @@ function step(offset) {
   // Wraps around, so next on the last photo returns to the first.
   index.value = (index.value + offset + count) % count
 }
-
-function handleFiles(event) {
-  addPhotos(selectedDate.value, event.target.files)
-  // Clearing lets the same file be picked again if it was removed.
-  event.target.value = ''
-}
 </script>
 
 <template>
@@ -46,8 +111,21 @@ function handleFiles(event) {
       <h1>Photo Journal</h1>
       <div class="toolbar">
         <p class="count">{{ photos.length }}/{{ MAX_PHOTOS }}</p>
-        <button type="button" class="add-btn" :disabled="remaining === 0" @click="fileInput.click()">
-          {{ remaining === 0 ? 'Limit reached' : 'Add photos' }}
+        <button
+          type="button"
+          class="add-btn"
+          :disabled="!editable || remaining === 0 || uploading"
+          @click="fileInput.click()"
+        >
+          {{
+            !editable
+              ? 'Locked'
+              : uploading
+                ? 'Uploading…'
+                : remaining === 0
+                  ? 'Limit reached'
+                  : 'Add photos'
+          }}
         </button>
         <input
           ref="fileInput"
@@ -55,12 +133,55 @@ function handleFiles(event) {
           type="file"
           accept="image/*"
           multiple
-          @change="handleFiles"
+          @change="handleAddPhotos"
         />
       </div>
     </header>
 
+    <p v-if="entries.error" class="banner error">
+      {{ entries.error }}
+      <button type="button" class="banner-close" @click="clearError">×</button>
+    </p>
+
+    <!-- Writing is blocked rather than saved unencrypted, so this has to say
+         plainly what to do about it. -->
+    <p v-if="!isReady" class="locked-note warn">
+      🔒 Journal writing is locked, so it can't be saved right now. Photos, captions and moods still
+      work.
+      <template v-if="vault.error">
+        <br /><span class="reason">{{ vault.error }}</span>
+      </template>
+      <br /><RouterLink to="/settings">Fix this in Settings → Journal privacy</RouterLink>
+    </p>
+
     <DateStrip v-model="selectedDate" />
+
+    <p v-if="!editable" class="locked-note">
+      {{ isPast ? 'This day is closed.' : 'This day has not arrived yet.' }}
+      You can only record today.
+    </p>
+
+    <!-- The day's own mood, separate from the per-photo ones. Without this a
+         day with no photo could never be logged, and the streak would break
+         every time you didn't take a picture. -->
+    <div class="day-mood">
+      <span class="day-mood-label">{{ editable ? 'How was this day?' : 'How this day felt' }}</span>
+      <div class="day-mood-picker">
+        <button
+          v-for="mood in activeMoods"
+          :key="mood.id"
+          type="button"
+          class="day-mood-btn"
+          :class="{ active: dayMoodId === mood.id }"
+          :title="mood.label"
+          :disabled="!editable"
+          :style="dayMoodId === mood.id ? { borderColor: mood.color_hex } : null"
+          @click="setDayMood(selectedDate, mood.id)"
+        >
+          {{ mood.emoji }}
+        </button>
+      </div>
+    </div>
 
     <div v-if="currentPhoto" class="viewer">
       <div class="stage">
@@ -78,10 +199,14 @@ function handleFiles(event) {
           <PolaroidPhoto
             :key="currentPhoto.id"
             :photo="currentPhoto"
-            :journal-title="entry.journalTitle"
-            :journal-text="entry.journalText"
+            :journal-title="journalTitle"
+            :journal-text="journalText"
+            :journal-locked="journalLocked"
+            :readonly="!editable"
             @remove="removePhoto(selectedDate, currentPhoto.id)"
-            @save-journal="setJournal(selectedDate, $event)"
+            @save-journal="savePhotoJournal(selectedDate, currentPhoto.id, $event)"
+            @set-caption="setPhotoCaption(selectedDate, currentPhoto.id, $event)"
+            @set-mood="setPhotoMood(selectedDate, currentPhoto.id, $event)"
           />
         </div>
 
@@ -113,6 +238,8 @@ function handleFiles(event) {
       </p>
     </div>
 
+    <p v-else-if="entries.loading" class="empty">Loading…</p>
+    <p v-else-if="!editable" class="empty">No photos were added on this day.</p>
     <p v-else class="empty">No photos for this day yet. Add up to {{ MAX_PHOTOS }}.</p>
   </div>
 </template>
@@ -164,6 +291,107 @@ h1 {
 
 .file-input {
   display: none;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  margin-bottom: 0.8rem;
+}
+
+.banner.error {
+  background: rgba(226, 87, 76, 0.12);
+  border: 1px solid rgba(226, 87, 76, 0.4);
+  color: #c0392b;
+}
+
+.banner-close {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.locked-note {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-text-soft);
+  background: var(--color-bg-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.2rem;
+}
+
+.locked-note.warn {
+  background: rgba(226, 87, 76, 0.1);
+  border-color: rgba(226, 87, 76, 0.35);
+  color: #c0392b;
+  line-height: 1.6;
+}
+
+.locked-note .reason {
+  opacity: 0.85;
+  font-size: 0.75rem;
+}
+
+.day-mood {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
+  margin: 0.9rem 0 0.2rem;
+}
+
+.day-mood-label {
+  font-size: 0.82rem;
+  color: var(--color-text-soft);
+}
+
+.day-mood-picker {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.day-mood-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-bg-card);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  /* Dimmed until picked, so the chosen mood reads at a glance. */
+  filter: grayscale(1);
+  opacity: 0.55;
+  transition:
+    filter 0.15s,
+    opacity 0.15s;
+}
+
+.day-mood-btn:hover:not(:disabled),
+.day-mood-btn.active {
+  filter: none;
+  opacity: 1;
+}
+
+/* Locked days still show which mood was picked — the rest just go quiet. */
+.day-mood-btn:disabled {
+  cursor: default;
+}
+
+.day-mood-btn:disabled:not(.active) {
+  opacity: 0.3;
 }
 
 .viewer {

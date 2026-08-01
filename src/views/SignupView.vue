@@ -27,7 +27,9 @@ async function handleSubmit() {
   // email before the account can log in — there's no session yet to send
   // them straight to the dashboard with.
   if (result.needsConfirmation) {
-    info.value = 'Account created — check your email to confirm it, then log in.'
+    // The link now carries a redirect back into the app, so confirming signs
+    // them in directly — no second trip through the login form.
+    info.value = `Account created. Check ${email.value} and tap the confirmation link — it brings you straight back here, signed in.`
     return
   }
   router.push({ name: 'dashboard' })
@@ -37,6 +39,9 @@ async function handleSubmit() {
 <template>
   <div class="login-screen">
     <form class="login-card" @submit.prevent="handleSubmit">
+      <!-- Decorative: the heading right below already says "Prism", so an alt
+           here would just make a screen reader announce the name twice. -->
+      <img class="brand-mark" src="/icon.png" alt="" width="88" height="88" />
       <h1 class="title">Prism</h1>
       <p class="subtitle">Create your account.</p>
 
@@ -76,6 +81,9 @@ async function handleSubmit() {
   align-items: center;
   justify-content: center;
   background: var(--color-bg-soft);
+  /* Keeps the card clear of the notch and the gesture bar on a phone. */
+  padding: calc(1rem + var(--safe-top)) calc(1rem + var(--safe-right))
+    calc(1rem + var(--safe-bottom)) calc(1rem + var(--safe-left));
 }
 
 .login-card {
@@ -88,6 +96,15 @@ async function handleSubmit() {
   flex-direction: column;
   gap: 1rem;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+}
+
+/* The card is a flex column, whose default align-items is stretch — without
+   align-self the image would be pulled to the full card width. */
+.brand-mark {
+  align-self: center;
+  /* Pulls the title up against the logo, since the card's 1rem gap is too
+     much between a mark and the name it belongs to. */
+  margin-bottom: -0.6rem;
 }
 
 .title {

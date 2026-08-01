@@ -1,8 +1,39 @@
 <script setup>
+import { ref, watch } from 'vue'
 import { useTheme, accentOptions, fontOptions, fontSizeOptions } from '@/composables/useTheme'
+import { useAuth } from '@/composables/useAuth'
 import MoodEditor from '@/components/MoodEditor.vue'
+import JournalPrivacy from '@/components/JournalPrivacy.vue'
 
 const { theme, toggleMode, setAccent, setFont, setFontSize } = useTheme()
+const { auth, displayName, updateDisplayName } = useAuth()
+
+// A draft copy, same idea as MoodEditor: auth state is readonly, and we only
+// want to write when Save is pressed. It starts empty because the profile may
+// still be loading when this view mounts — the watch fills it in.
+const nameDraft = ref('')
+const saving = ref(false)
+const nameError = ref('')
+const savedNote = ref(false)
+
+watch(displayName, (name) => (nameDraft.value = name), { immediate: true })
+
+async function saveName() {
+  saving.value = true
+  nameError.value = ''
+  savedNote.value = false
+
+  const result = await updateDisplayName(nameDraft.value)
+  saving.value = false
+
+  if (result.success) {
+    savedNote.value = true
+    setTimeout(() => (savedNote.value = false), 2000)
+  } else {
+    nameError.value = result.error
+    nameDraft.value = displayName.value
+  }
+}
 </script>
 
 <template>
@@ -83,6 +114,46 @@ const { theme, toggleMode, setAccent, setFont, setFontSize } = useTheme()
         >
           {{ f.name }}
         </button>
+      </div>
+    </section>
+
+    <section class="group">
+      <h2>Journal privacy</h2>
+      <JournalPrivacy />
+    </section>
+
+    <section class="group">
+      <h2>Account</h2>
+
+      <div class="account">
+        <label class="field">
+          <span class="field-label">Display name</span>
+          <div class="field-row">
+            <input
+              v-model="nameDraft"
+              class="text-input"
+              maxlength="40"
+              autocomplete="nickname"
+              @keydown.enter="saveName"
+            />
+            <button
+              type="button"
+              class="save-btn"
+              :disabled="saving || !nameDraft.trim() || nameDraft.trim() === displayName"
+              @click="saveName"
+            >
+              {{ saving ? 'Saving…' : 'Save' }}
+            </button>
+          </div>
+          <p v-if="nameError" class="field-error">{{ nameError }}</p>
+          <p v-else-if="savedNote" class="field-ok">Saved.</p>
+          <p v-else class="field-hint">This is the name shown in the greeting.</p>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Email</span>
+          <input class="text-input" :value="auth.user?.email ?? ''" disabled />
+        </label>
       </div>
     </section>
   </div>
@@ -222,5 +293,84 @@ h1 {
 .font-option.selected {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.account {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.field-label {
+  font-size: 0.8rem;
+  color: var(--color-text-soft);
+}
+
+.field-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.text-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.text-input:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.save-btn {
+  padding: 0.45rem 1.1rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.save-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.field-hint,
+.field-ok,
+.field-error {
+  font-size: 0.75rem;
+}
+
+.field-hint {
+  color: var(--color-text-soft);
+}
+
+.field-ok {
+  color: var(--accent);
+}
+
+.field-error {
+  color: #c0392b;
 }
 </style>

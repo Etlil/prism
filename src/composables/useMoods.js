@@ -1,6 +1,7 @@
 import { reactive, computed, readonly, watch } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/composables/useAuth'
+import { onSessionReset } from '@/composables/sessionReset'
 
 // Module-level state, same pattern as useAuth and useTheme: every component
 // that calls useMoods() shares one copy, so the settings screen and the mood
@@ -13,18 +14,29 @@ const state = reactive({
   loaded: false,
 })
 
+// Wiped whenever the signed-in user changes. loadMoods returns early once
+// `loaded` is true, so without this a second account would inherit the first
+// account's mood list — names, colours and all.
+onSessionReset(() => {
+  state.all = []
+  state.loading = false
+  state.saving = false
+  state.error = ''
+  state.loaded = false
+})
+
 const HEX = /^#[0-9a-f]{6}$/
 
 // The six defaults every account starts with. Normally the on_auth_user_created
 // trigger inserts these at signup; this copy is the fallback for accounts that
 // existed before the trigger did.
 const DEFAULT_MOODS = [
-  { label: 'Content', emoji: '😌', color_hex: '#b19cd9' },
-  { label: 'Creative', emoji: '🎨', color_hex: '#f2a6c9' },
-  { label: 'Joyful', emoji: '😄', color_hex: '#f5d547' },
-  { label: 'Angry', emoji: '😠', color_hex: '#e2574c' },
-  { label: 'Anxious', emoji: '😰', color_hex: '#6fcf97' },
-  { label: 'Sad', emoji: '😢', color_hex: '#2e3a87' },
+  { label: 'Content', emoji: '😌', color_hex: '#68d8a3' },
+  { label: 'Creative', emoji: '🎨', color_hex: '#ebb0ff' },
+  { label: 'Joyful', emoji: '😄', color_hex: '#e5c43d' },
+  { label: 'Angry', emoji: '😠', color_hex: '#eb7581' },
+  { label: 'Anxious', emoji: '😰', color_hex: '#00abc5' },
+  { label: 'Sad', emoji: '😢', color_hex: '#8a8fff' },
 ]
 
 // Matches the table's CHECK constraint, which only accepts lowercase. An

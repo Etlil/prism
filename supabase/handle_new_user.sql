@@ -30,12 +30,12 @@ begin
   -- constraint (^#[0-9a-f]{6}$).
   insert into public.moods (user_id, label, emoji, color_hex, sort_order)
   values
-    (new.id, 'Content',  '😌', '#b19cd9', 0),
-    (new.id, 'Creative', '🎨', '#f2a6c9', 1),
-    (new.id, 'Joyful',   '😄', '#f5d547', 2),
-    (new.id, 'Angry',    '😠', '#e2574c', 3),
-    (new.id, 'Anxious',  '😰', '#6fcf97', 4),
-    (new.id, 'Sad',      '😢', '#2e3a87', 5);
+    (new.id, 'Content',  '😌', '#68d8a3', 0),
+    (new.id, 'Creative', '🎨', '#ebb0ff', 1),
+    (new.id, 'Joyful',   '😄', '#e5c43d', 2),
+    (new.id, 'Angry',    '😠', '#eb7581', 3),
+    (new.id, 'Anxious',  '😰', '#00abc5', 4),
+    (new.id, 'Sad',      '😢', '#8a8fff', 5);
 
   return new; 
 end;

@@ -42,7 +42,7 @@ async function handleLogout() {
   <nav class="app-nav" :class="{ open }">
     <div class="nav-header">
       <div class="brand">
-        <img class="brand-mark" src="/icon.svg" alt="" width="26" height="26" />
+        <img class="brand-mark" src="/icon.png" alt="" width="26" height="26" />
         <span>Prism</span>
       </div>
       <p class="greeting">Hi, {{ displayName }}</p>
@@ -89,7 +89,10 @@ async function handleLogout() {
   height: 100vh;
   position: sticky;
   top: 0;
-  padding: 1.5rem 0.6rem;
+  /* Insets added to the existing padding rather than replacing it, so the nav
+     keeps its spacing on desktop where the insets are 0. */
+  padding: calc(1.5rem + var(--safe-top)) 0.6rem calc(1.5rem + var(--safe-bottom));
+  padding-left: calc(0.6rem + var(--safe-left));
   background: var(--color-bg-soft);
   border-right: 1px solid var(--color-border);
   /* Lets the menu scroll instead of clipping on short screens. */
@@ -100,8 +103,9 @@ async function handleLogout() {
 .nav-toggle {
   display: none;
   position: fixed;
-  top: 0.75rem;
-  left: 0.75rem;
+  /* Without the inset this lands under the status bar / camera notch. */
+  top: calc(0.75rem + var(--safe-top));
+  left: calc(0.75rem + var(--safe-left));
   z-index: 20;
   width: 40px;
   height: 40px;

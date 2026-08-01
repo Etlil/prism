@@ -2,8 +2,15 @@
 <html lang="">
   <head>
     <meta charset="UTF-8">
-    <link rel="icon" type="image/svg+xml" href="/icon.svg">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/icon.png">
+    <link rel="apple-touch-icon" href="/icon.png">
+    <!-- viewport-fit=cover is what makes the env(safe-area-inset-*) values
+         non-zero. Without it the notch and status bar report 0 and every
+         inset below silently does nothing. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    >
     <title>Prism</title>
   </head>
   <body>

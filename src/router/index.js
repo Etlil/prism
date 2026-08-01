@@ -15,6 +15,14 @@ const router = createRouter({
       component: () => import('@/views/SignupView.vue'),
     },
     {
+      // Where the confirmation email lands. Public on purpose — the guard
+      // below would bounce it to /login before the session had been read out
+      // of the URL fragment.
+      path: '/confirm',
+      name: 'confirm',
+      component: () => import('@/views/ConfirmView.vue'),
+    },
+    {
       path: '/',
       name: 'dashboard',
       component: () => import('@/views/DashboardView.vue'),

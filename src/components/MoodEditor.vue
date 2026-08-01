@@ -20,7 +20,7 @@ const {
 const drafts = reactive({})
 const showArchived = ref(false)
 
-const newMood = reactive({ label: '', emoji: '🙂', colorHex: '#b19cd9' })
+const newMood = reactive({ label: '', emoji: '🙂', colorHex: '#ebb0ff' })
 const adding = ref(false)
 
 const archived = computed(() => moods.all.filter((m) => m.is_archived))

@@ -48,6 +48,15 @@
   --radius-sm: 8px;
   --radius-md: 14px;
   --radius-lg: 22px;
+
+  /* Status bar, notch and the Android gesture bar. Zero in a desktop browser,
+     real values once wrapped by Capacitor — so the same CSS is correct in
+     both. Requires viewport-fit=cover on the viewport meta tag, or these all
+     report 0. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 }
 
 :root[data-theme='dark'] {
