@@ -1,5 +1,5 @@
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useMoods } from '@/composables/useMoods'
 
 const { activeMoods } = useMoods()
@@ -14,12 +14,17 @@ const props = defineProps({
   // The journal text is encrypted and the vault hasn't been unlocked this
   // session. Distinct from "nothing written yet".
   journalLocked: { type: Boolean, default: false },
+  uploading: { type: Boolean, default: false },
 })
+
+// A card can exist with no picture — some days there's nothing to photograph
+// and plenty to say.
+const hasPhoto = computed(() => !!props.photo.storage_path)
 
 // The card no longer writes anything itself — saving goes through the network,
 // so the page that owns the data does it and this component just reports what
 // was clicked.
-const emit = defineEmits(['remove', 'save-journal', 'set-caption', 'set-mood'])
+const emit = defineEmits(['remove', 'save-journal', 'set-caption', 'set-mood', 'add-photo'])
 
 // Local to each card, so flipping one doesn't affect the others.
 const flipped = ref(false)
@@ -88,9 +93,26 @@ const tilt = (seed % 2 === 0 ? 1 : -1) * (1 + (seed % 3))
           @click="flipped = true"
         >
           <!-- The bucket is private, so photo.url is a signed link that arrives
-               a moment after the row does. The placeholder covers that gap. -->
+               a moment after the row does. The pulse covers that gap. -->
           <img v-if="photo.url" class="photo" :src="photo.url" alt="" />
-          <span v-else class="photo photo-loading"></span>
+          <span v-else-if="hasPhoto" class="photo photo-loading"></span>
+
+          <!-- No picture on this card. Tapping still flips to the journal;
+               the button below is what adds an image. -->
+          <span v-else class="photo photo-empty">
+            <span class="empty-mark">✎</span>
+            <span class="empty-text">Tap to write</span>
+          </span>
+        </button>
+
+        <button
+          v-if="!hasPhoto && !readonly"
+          type="button"
+          class="attach"
+          :disabled="uploading"
+          @click="$emit('add-photo')"
+        >
+          {{ uploading ? 'Uploading…' : '+ Add a photo' }}
         </button>
 
         <input
@@ -251,6 +273,52 @@ const tilt = (seed % 2 === 0 ? 1 : -1) * (1 + (seed % 3))
   /* Keeps the row's height when there is no caption, so the card doesn't
      change shape between an empty locked day and a filled one. */
   min-height: 1.2em;
+}
+
+/* A card with nothing attached. Dashed so it reads as a slot rather than a
+   broken image. */
+.photo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #f4f2ef;
+  border: 2px dashed #cfc9c2;
+  color: #a39b92;
+}
+
+.empty-mark {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.empty-text {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.attach {
+  margin-top: 4px;
+  padding: 5px 8px;
+  border: 1px solid #d8d3cc;
+  border-radius: 4px;
+  background: #fdfdfd;
+  color: #6b635a;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.attach:hover:not(:disabled) {
+  border-color: #b7afa4;
+  color: #3f3931;
+}
+
+.attach:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 /* Shown while the signed URL is being fetched. */
@@ -466,6 +534,6 @@ const tilt = (seed % 2 === 0 ? 1 : -1) * (1 + (seed % 3))
 .save-btn {
   border: none;
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 </style>

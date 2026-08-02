@@ -14,12 +14,13 @@ const { activeMoods, loadMoods } = useMoods()
 const { isReady, vault } = useVault()
 const {
   entries,
-  MAX_PHOTOS,
+  MAX_ENTRIES,
   loadYear,
   signPhotosFor,
   setDayMood,
   savePhotoJournal,
-  addPhotos,
+  addEntry,
+  attachPhoto,
   removePhoto,
   setPhotoCaption,
   setPhotoMood,
@@ -37,7 +38,7 @@ const uploading = ref(false)
 // save anywhere else in the app shows up here immediately.
 const entry = computed(() => entries.byDate[selectedDate.value] ?? null)
 const photos = computed(() => entry.value?.photos ?? [])
-const remaining = computed(() => MAX_PHOTOS - photos.value.length)
+const remaining = computed(() => MAX_ENTRIES - photos.value.length)
 const currentPhoto = computed(() => photos.value[index.value])
 const dayMoodId = computed(() => entry.value?.mood_id ?? null)
 
@@ -77,15 +78,22 @@ watch(selectedDate, async (iso) => {
   await Promise.all([signPhotosFor(iso), decryptEntry(iso)])
 })
 
-async function handleAddPhotos(event) {
-  uploading.value = true
-  await addPhotos(selectedDate.value, event.target.files)
-  // New rows arrive without the decrypted fields, so give them their (empty)
-  // *_plain values rather than leaving them undefined.
-  await decryptEntry(selectedDate.value)
-  uploading.value = false
-  // Clearing lets the same file be picked again if it was removed.
+// Creates a blank card and jumps to it, so the next thing you see is the thing
+// you just made.
+async function handleAddEntry() {
+  const result = await addEntry(selectedDate.value)
+  if (result.success) index.value = photos.value.length - 1
+}
+
+// The file picker is shared by every card; this remembers which one asked.
+async function handleAttachPhoto(event) {
+  const file = event.target.files?.[0]
   event.target.value = ''
+  if (!file || !currentPhoto.value) return
+
+  uploading.value = true
+  await attachPhoto(selectedDate.value, currentPhoto.value.id, file)
+  uploading.value = false
 }
 
 // Keeps the index valid when the list shrinks — without this, deleting the
@@ -110,30 +118,23 @@ function step(offset) {
     <header class="page-header">
       <h1>Photo Journal</h1>
       <div class="toolbar">
-        <p class="count">{{ photos.length }}/{{ MAX_PHOTOS }}</p>
+        <p class="count">{{ photos.length }}/{{ MAX_ENTRIES }}</p>
         <button
           type="button"
           class="add-btn"
-          :disabled="!editable || remaining === 0 || uploading"
-          @click="fileInput.click()"
+          :disabled="!editable || remaining === 0 || entries.saving"
+          @click="handleAddEntry"
         >
-          {{
-            !editable
-              ? 'Locked'
-              : uploading
-                ? 'Uploading…'
-                : remaining === 0
-                  ? 'Limit reached'
-                  : 'Add photos'
-          }}
+          {{ !editable ? 'Locked' : remaining === 0 ? 'Limit reached' : 'Add entry' }}
         </button>
+        <!-- One picker for the whole page; the card being viewed is the one it
+             attaches to. -->
         <input
           ref="fileInput"
           class="file-input"
           type="file"
           accept="image/*"
-          multiple
-          @change="handleAddPhotos"
+          @change="handleAttachPhoto"
         />
       </div>
     </header>
@@ -203,6 +204,8 @@ function step(offset) {
             :journal-text="journalText"
             :journal-locked="journalLocked"
             :readonly="!editable"
+            :uploading="uploading"
+            @add-photo="fileInput.click()"
             @remove="removePhoto(selectedDate, currentPhoto.id)"
             @save-journal="savePhotoJournal(selectedDate, currentPhoto.id, $event)"
             @set-caption="setPhotoCaption(selectedDate, currentPhoto.id, $event)"
@@ -240,7 +243,10 @@ function step(offset) {
 
     <p v-else-if="entries.loading" class="empty">Loading…</p>
     <p v-else-if="!editable" class="empty">No photos were added on this day.</p>
-    <p v-else class="empty">No photos for this day yet. Add up to {{ MAX_PHOTOS }}.</p>
+    <p v-else-if="!editable" class="empty">Nothing was written on this day.</p>
+    <p v-else class="empty">
+      Nothing here yet. Add an entry — a photo is optional, writing is the point.
+    </p>
   </div>
 </template>
 
@@ -278,7 +284,7 @@ h1 {
   border-radius: var(--radius-sm);
   border: none;
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;

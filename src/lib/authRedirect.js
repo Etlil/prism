@@ -23,3 +23,9 @@ export function confirmRedirectUrl() {
   if (isNativeApp()) return `${APP_SCHEME}://confirm`
   return `${window.location.origin}/confirm`
 }
+
+// Where the "reset your password" email lands.
+export function resetRedirectUrl() {
+  if (isNativeApp()) return `${APP_SCHEME}://reset-password`
+  return `${window.location.origin}/reset-password`
+}

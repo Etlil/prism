@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useMoods } from '@/composables/useMoods'
+import { useMoods, SCORE_LABELS } from '@/composables/useMoods'
 
 const {
   moods,
@@ -20,7 +20,10 @@ const {
 const drafts = reactive({})
 const showArchived = ref(false)
 
-const newMood = reactive({ label: '', emoji: '🙂', colorHex: '#ebb0ff' })
+const newMood = reactive({ label: '', emoji: '🙂', colorHex: '#ebb0ff', score: 3 })
+
+// Highest first, so the dropdown reads top-to-bottom like the chart's y-axis.
+const scoreOptions = [5, 4, 3, 2, 1].map((value) => ({ value, label: SCORE_LABELS[value] }))
 const adding = ref(false)
 
 const archived = computed(() => moods.all.filter((m) => m.is_archived))
@@ -33,6 +36,7 @@ watch(
         label: mood.label,
         emoji: mood.emoji,
         color_hex: mood.color_hex,
+        score: mood.score ?? 3,
       }
     }
   },
@@ -85,7 +89,8 @@ async function handleAdd() {
   if (result.success) {
     newMood.label = ''
     newMood.emoji = '🙂'
-    newMood.colorHex = '#b19cd9'
+    newMood.colorHex = '#ebb0ff'
+    newMood.score = 3
   }
 }
 
@@ -241,6 +246,19 @@ function rowStyle(index, mood) {
             @change="saveField(mood, 'color_hex')"
           />
 
+          <!-- Where this mood sits on the chart's 1–5 axis. Separate from the
+               drag order above, which is only how the picker is arranged. -->
+          <select
+            v-model.number="drafts[mood.id].score"
+            class="score-input"
+            aria-label="How this mood scores"
+            @change="saveField(mood, 'score')"
+          >
+            <option v-for="opt in scoreOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+
           <div class="row-actions">
             <button
               type="button"
@@ -284,6 +302,11 @@ function rowStyle(index, mood) {
           aria-label="New mood name"
         />
         <input v-model="newMood.colorHex" type="color" class="color-input" aria-label="New colour" />
+        <select v-model.number="newMood.score" class="score-input" aria-label="How it scores">
+          <option v-for="opt in scoreOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
+        </select>
         <button type="submit" class="add-btn" :disabled="adding || !newMood.label.trim()">
           {{ adding ? 'Adding…' : 'Add' }}
         </button>
@@ -436,6 +459,17 @@ function rowStyle(index, mood) {
   background: var(--color-bg);
 }
 
+.score-input {
+  flex-shrink: 0;
+  padding: 0.3rem 0.2rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.75rem;
+}
+
 .color-input {
   width: 34px;
   height: 30px;
@@ -565,7 +599,7 @@ function rowStyle(index, mood) {
   border: none;
   border-radius: var(--radius-sm);
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;

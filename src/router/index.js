@@ -23,6 +23,19 @@ const router = createRouter({
       component: () => import('@/views/ConfirmView.vue'),
     },
     {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('@/views/ForgotPasswordView.vue'),
+    },
+    {
+      // Where the reset email lands. The recovery link brings its own session,
+      // so this must stay public — and must NOT be treated like /login below,
+      // which would redirect an already-signed-in visitor away from it.
+      path: '/reset-password',
+      name: 'reset-password',
+      component: () => import('@/views/ResetPasswordView.vue'),
+    },
+    {
       path: '/',
       name: 'dashboard',
       component: () => import('@/views/DashboardView.vue'),

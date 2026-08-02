@@ -189,7 +189,7 @@ async function handleLogout() {
 
 .nav-link.router-link-active {
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 
 /* The SVGs use fill="currentColor", so they inherit the link's colour and turn

@@ -1,13 +1,13 @@
 <script setup>
 import { computed } from 'vue'
 
-// One component for every pixel shape, per CLAUDE.md: adding a new shape
-// later should mean adding one CSS class here, not a new component.
 const props = defineProps({
   colors: { type: Array, default: () => [] },
-  shape: { type: String, default: 'square' },
   label: { type: String, default: '' },
   isToday: { type: Boolean, default: false },
+  // Grid positions that aren't real dates (Feb 30, Apr 31) render as a gap and
+  // must not be tappable.
+  disabled: { type: Boolean, default: false },
 })
 
 // conic-gradient draws the pie natively — no SVG or chart library needed. Each
@@ -26,19 +26,49 @@ const background = computed(() => {
 </script>
 
 <template>
-  <div
+  <!-- A button rather than a div so it is reachable by keyboard and announced
+       as something you can activate. The parent decides what a tap does. -->
+  <button
+    type="button"
     class="mood-cell"
-    :class="[`shape-${shape}`, { 'is-today': isToday }]"
+    :class="{ 'is-today': isToday }"
     :style="{ background }"
     :title="label"
-  ></div>
+    :aria-label="label"
+    :disabled="disabled"
+  ></button>
 </template>
 
 <style scoped>
 .mood-cell {
   width: 100%;
   aspect-ratio: 1;
+  border-radius: 3px;
   border: 1px solid var(--color-border);
+  /* Buttons bring their own padding, font and background — all of which would
+     break the grid geometry. */
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  /* Stops a tap on a phone waiting to see if it's a double-tap-to-zoom. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mood-cell:disabled {
+  cursor: default;
+}
+
+.mood-cell:not(:disabled):hover {
+  /* Inset, like the today ring: an outer glow on a ~25px cell gets painted
+     over by its neighbours. */
+  box-shadow: inset 0 0 0 2px var(--color-text);
+}
+
+.mood-cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  z-index: 1;
 }
 
 /* Drawn inset rather than outside the cell: an outer ring is painted over by
@@ -50,36 +80,4 @@ const background = computed(() => {
     inset 0 0 0 3px var(--color-text);
 }
 
-.shape-square {
-  border-radius: 3px;
-}
-
-.shape-rounded {
-  border-radius: 30%;
-}
-
-.shape-circle {
-  border-radius: 50%;
-}
-
-.shape-hexagon {
-  border: none;
-  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-}
-
-.shape-star {
-  border: none;
-  clip-path: polygon(
-    50% 0%,
-    61% 35%,
-    98% 35%,
-    68% 57%,
-    79% 91%,
-    50% 70%,
-    21% 91%,
-    32% 57%,
-    2% 35%,
-    39% 35%
-  );
-}
 </style>

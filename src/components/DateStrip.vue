@@ -177,7 +177,7 @@ watch([selected, viewMonth, viewYear], scrollSelectedIntoView, { immediate: true
 
 .today-btn:hover {
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 
 .days {
@@ -224,7 +224,7 @@ watch([selected, viewMonth, viewYear], scrollSelectedIntoView, { immediate: true
 
 .day.selected {
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 
 .day.selected .wd {

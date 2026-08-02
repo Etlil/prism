@@ -63,7 +63,7 @@ src/
   data/moods.js          6 hardcoded moods (id, label, emoji, colorHex)
   data/fakeYear.js       365 fake days, ~1 in 6 blank so streaks mean something
   data/fakeEntries.js    Fake journal entries keyed by date + all mutators
-  components/MoodCell.vue    One pixel — conic-gradient pie, shape prop, today ring
+  components/MoodCell.vue    One pixel — conic-gradient pie, today ring
   components/DateStrip.vue   Month/year picker + horizontal day strip
   components/PolaroidPhoto.vue Flip card: photo + mood picker / journal + editor
   components/AppNav.vue      Sidebar, hamburger drawer under 768px
@@ -161,18 +161,15 @@ its photos' moods. Keep or drop it deliberately; don't leave it half-used.
 
 ---
 
-# Pixel shapes
+# Pixel shapes — dropped
 
-Cell shape is a user setting applying to the whole grid: square, rounded square,
-circle, hexagon, star, and more later.
+Cells were going to be shapeable (square, circle, hexagon, star) as a whole-grid
+setting. All five were built in `MoodCell`, but nothing ever set the prop and the
+Settings picker was never added, so every cell rendered square regardless.
 
-Implement as a single `MoodCell` component that takes a shape prop and applies a
-CSS class. Squares and circles are `border-radius`. Hexagons and stars are
-`clip-path`. Adding a new shape should mean adding one CSS class and nothing
-else. Do not create a separate component per shape.
-
-**Built**, all five shapes. But nothing sets the prop yet — every cell renders as
-`square`. `profiles.pixel_shape` is unused; the Settings shape picker is Phase 6.
+**Removed on the owner's call.** `MoodCell` now draws one fixed rounded square.
+`profiles.pixel_shape` still exists in the database, unread — harmless, drop it
+if the column ever gets in the way.
 
 ## Pixels are pie charts now
 

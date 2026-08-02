@@ -1,8 +1,26 @@
 <script setup>
+import { watch, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
+import { useStreak } from '@/composables/useStreak'
+import { useReminders } from '@/composables/useReminders'
+import { dayLoggedAt } from '@/composables/useEntries'
 import AppNav from '@/components/AppNav.vue'
+import StreakCelebration from '@/components/StreakCelebration.vue'
 
 const { auth } = useAuth()
+const { showCelebration, maybeCelebrate } = useStreak()
+const { initReminders, rescheduleReminders } = useReminders()
+
+onMounted(initReminders)
+
+// Lives here rather than in a view so it fires wherever the mood was set —
+// the dashboard pixel sheet, the journal page, or a photo's mood picker.
+watch(dayLoggedAt, () => {
+  // Only shows on the first log of each day; later edits do nothing.
+  maybeCelebrate()
+  // Today is now logged, so tonight's remaining nudges are cancelled.
+  rescheduleReminders()
+})
 </script>
 
 <template>
@@ -12,6 +30,8 @@ const { auth } = useAuth()
       <!-- router-view swaps in whichever view matches the current route -->
       <RouterView />
     </main>
+
+    <StreakCelebration v-if="showCelebration && auth.isLoggedIn" />
   </div>
 </template>
 

@@ -7,13 +7,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "apk": "vite build && cap sync android && cd android && gradlew.bat assembleDebug",
-    "apk:install": "adb install -r android/app/build/outputs/apk/debug/app-debug.apk"
+    "apk": "vite build && cap sync android && cd android && .\\gradlew.bat assembleDebug",
+    "apk:release": "vite build && cap sync android && cd android && .\\gradlew.bat assembleRelease",
+    "apk:install": "adb install -r android/app/build/outputs/apk/release/app-release.apk"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",
     "@capacitor/cli": "^8.4.2",
     "@capacitor/core": "^8.4.2",
+    "@capacitor/local-notifications": "^8.2.1",
     "@supabase/supabase-js": "^2.110.9",
     "vue": "^3.5.40",
     "vue-router": "^4.6.4"

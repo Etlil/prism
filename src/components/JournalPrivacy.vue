@@ -16,7 +16,6 @@ const code = ref('')
 const copied = ref(false)
 
 const recoveryInput = ref('')
-const passwordInput = ref('')
 const restored = ref(false)
 
 async function handleNewCode() {
@@ -28,11 +27,10 @@ async function handleNewCode() {
 
 async function handleRestore() {
   clearVaultError()
-  const result = await recoverWithCode(auth.user?.id, recoveryInput.value, passwordInput.value)
+  const result = await recoverWithCode(auth.user?.id, recoveryInput.value)
   if (!result.success) return
 
   recoveryInput.value = ''
-  passwordInput.value = ''
   restored.value = true
   await decryptLoadedEntries()
 }
@@ -106,6 +104,10 @@ async function handleReset() {
         <strong>Log out and log back in.</strong> That's almost always the fix: your password is
         what unlocks the key, and a restored session doesn't carry it.
       </p>
+      <p class="note">
+        Only the recovery code is needed below — not your password. Logging in afterwards reattaches
+        your password to the key automatically.
+      </p>
       <!-- The real reason, straight from the failure. Without this the advice
            above is a guess. -->
       <p v-if="vault.error" class="error boxed">{{ vault.error }}</p>
@@ -116,28 +118,24 @@ async function handleReset() {
       </p>
 
       <form class="form" @submit.prevent="handleRestore">
+        <label class="field-label" for="recovery-code">Recovery code</label>
         <input
+          id="recovery-code"
           v-model="recoveryInput"
           class="input code-input"
           placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
           autocomplete="off"
+          autocapitalize="characters"
           spellcheck="false"
         />
-        <input
-          v-model="passwordInput"
-          type="password"
-          class="input"
-          placeholder="Your current password"
-          autocomplete="current-password"
-        />
-        <button
-          class="primary-btn"
-          type="submit"
-          :disabled="vault.busy || !recoveryInput || !passwordInput"
-        >
+        <button class="primary-btn" type="submit" :disabled="vault.busy || !recoveryInput">
           {{ vault.busy ? 'Restoring…' : 'Restore my journal' }}
         </button>
-        <p v-if="restored" class="ok">Restored. Your journals are readable again.</p>
+        <p v-if="restored" class="ok">
+          Restored. Your journals are readable again — and your password will pick the key up on
+          its own next time you log in.
+        </p>
+        <p v-else class="hint">Dashes optional. Upper or lower case both work.</p>
       </form>
 
       <!-- No password, no recovery code, no way in. This is the exit. -->
@@ -242,6 +240,13 @@ async function handleReset() {
 .code-input {
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: center;
+}
+
+.field-label {
+  font-size: 0.75rem;
+  color: var(--color-text-soft);
 }
 
 .primary-btn {
@@ -249,7 +254,7 @@ async function handleReset() {
   border: none;
   border-radius: var(--radius-sm);
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;

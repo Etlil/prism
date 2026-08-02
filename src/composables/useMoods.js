@@ -30,14 +30,26 @@ const HEX = /^#[0-9a-f]{6}$/
 // The six defaults every account starts with. Normally the on_auth_user_created
 // trigger inserts these at signup; this copy is the fallback for accounts that
 // existed before the trigger did.
+// score is where the mood sits on the 1–5 scale the chart plots against.
+// sort_order is only the order they appear in the picker — the two are
+// deliberately separate, so reordering the list never moves the chart.
 const DEFAULT_MOODS = [
-  { label: 'Content', emoji: '😌', color_hex: '#68d8a3' },
-  { label: 'Creative', emoji: '🎨', color_hex: '#ebb0ff' },
-  { label: 'Joyful', emoji: '😄', color_hex: '#e5c43d' },
-  { label: 'Angry', emoji: '😠', color_hex: '#eb7581' },
-  { label: 'Anxious', emoji: '😰', color_hex: '#00abc5' },
-  { label: 'Sad', emoji: '😢', color_hex: '#8a8fff' },
+  { label: 'Content', emoji: '😌', color_hex: '#68d8a3', score: 4 },
+  { label: 'Creative', emoji: '🎨', color_hex: '#ebb0ff', score: 4 },
+  { label: 'Joyful', emoji: '😄', color_hex: '#e5c43d', score: 5 },
+  { label: 'Angry', emoji: '😠', color_hex: '#eb7581', score: 2 },
+  { label: 'Anxious', emoji: '😰', color_hex: '#00abc5', score: 2 },
+  { label: 'Sad', emoji: '😢', color_hex: '#8a8fff', score: 1 },
 ]
+
+// Shown next to each mood in Settings and used for the chart's y-axis.
+export const SCORE_LABELS = {
+  5: 'Great',
+  4: 'Good',
+  3: 'Okay',
+  2: 'Low',
+  1: 'Rough',
+}
 
 // Matches the table's CHECK constraint, which only accepts lowercase. An
 // <input type="color"> already returns lowercase, but a pasted value might not.
@@ -156,7 +168,7 @@ watch(
   { immediate: true },
 )
 
-async function createMood({ label, emoji, colorHex }) {
+async function createMood({ label, emoji, colorHex, score = 3 }) {
   const userId = currentUserId()
   if (!userId) return { success: false, error: 'You are not signed in.' }
 
@@ -179,6 +191,7 @@ async function createMood({ label, emoji, colorHex }) {
       label: trimmed,
       emoji: emoji || '🙂',
       color_hex: color,
+      score: Math.min(5, Math.max(1, Number(score) || 3)),
       sort_order: nextOrder,
     })
     .select()

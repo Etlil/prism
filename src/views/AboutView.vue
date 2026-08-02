@@ -3,11 +3,14 @@ import { computed, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useMoods } from '@/composables/useMoods'
 import { useEntries } from '@/composables/useEntries'
+import { useStreak } from '@/composables/useStreak'
 import { buildYear, currentYear } from '@/lib/calendar'
 
 const { auth, displayName } = useAuth()
 const { loadMoods } = useMoods()
 const { loadYear, isLogged } = useEntries()
+// Same calculation the dashboard and the streak celebration use.
+const { longestStreak } = useStreak()
 
 const year = buildYear(currentYear)
 
@@ -30,21 +33,6 @@ const stack = [
 ]
 
 const loggedCount = computed(() => year.filter((day) => isLogged(day.isoDate)).length)
-
-// Longest run of consecutive logged days, scanning oldest to newest.
-const longestStreak = computed(() => {
-  let longest = 0
-  let current = 0
-  for (const day of year) {
-    if (isLogged(day.isoDate)) {
-      current++
-      longest = Math.max(longest, current)
-    } else {
-      current = 0
-    }
-  }
-  return longest
-})
 </script>
 
 <template>
@@ -112,8 +100,9 @@ const longestStreak = computed(() => {
           Archived moods stay on old entries so your past pixels keep their colours.
         </li>
         <li>
-          <strong>It should look like yours too.</strong> Light or dark, five accent colours, six
-          fonts, three text sizes. Every choice is remembered on your device.
+          <strong>It should look like yours too.</strong> Six themes — notebook, space, girly,
+          gothic, forest, sunset — each in light or dark, plus six fonts and three text sizes.
+          Every choice is remembered on your device.
         </li>
         <li>
           <strong>Only you can see any of it.</strong> Every row in the database is stamped with
@@ -178,7 +167,7 @@ h1 {
   height: 56px;
   border-radius: 50%;
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   display: flex;
   align-items: center;
   justify-content: center;

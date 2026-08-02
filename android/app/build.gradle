@@ -1,6 +1,28 @@
 apply plugin: 'com.android.application'
 
+// Release signing. Credentials live in android/keystore.properties, which is
+// gitignored — passwords in build.gradle would end up in version control.
+//
+// The file being missing is not an error: debug builds don't need it, and a
+// fresh clone should still be able to build. Only assembleRelease requires it.
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
 android {
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            release {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
     namespace = "com.etlil.prism"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
@@ -18,8 +40,14 @@ android {
     }
     buildTypes {
         release {
+            // Left off deliberately. The app's logic is JavaScript inside the
+            // WebView, which R8 never touches — so shrinking the Java side buys
+            // very little and is a known source of Capacitor plugin breakage.
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

@@ -152,13 +152,27 @@ export async function openVaultWithPassword(userId, password) {
     await encryptExisting()
     return { success: true }
   } catch {
-    // A key row exists but this password doesn't open it. Either it was
-    // wrapped under the old separate passphrase (before encryption became
-    // automatic), or the password has been reset since.
+    // The stored wrap doesn't open with this password — the password was reset,
+    // or the key predates automatic encryption.
+    //
+    // But this browser may still hold a working key: restoreVault runs first
+    // and loads the cached one, and a recovery-code unlock leaves it there too.
+    // In that case re-wrap under the password being used right now, so the
+    // stale wrap heals itself and the recovery code is never needed twice.
+    // (The failed unwrap threw before assigning, so dataKey is untouched.)
+    if (dataKey) {
+      const repair = await rewrapForNewPassword(userId, password)
+      if (repair.success) {
+        state.status = 'ready'
+        state.busy = false
+        return { success: true, repaired: true }
+      }
+    }
+
     state.busy = false
     state.status = 'locked'
     state.error =
-      'A journal key exists but your password does not open it — it was set up with a separate passphrase, or your password changed. Use your recovery code below, or start over.'
+      'A journal key exists but your password does not open it — your password changed, or the key was set up with a separate passphrase. Enter your recovery code below, or start over.'
     return { success: false, needsRecovery: true }
   }
 }
@@ -234,46 +248,40 @@ export function clearVault(userId) {
 
 // ── recovery ───────────────────────────────────────────────────────────────
 
-// After a password reset the old wrap is useless. This opens the journal with
-// the recovery code and re-wraps the key under the new password, so the next
-// sign-in works normally again.
-export async function recoverWithCode(userId, code, newPassword) {
+// Opens the journal with the recovery code alone.
+//
+// It deliberately does NOT ask for the password. The password wrap is left
+// stale for now and repaired automatically on the next sign-in — see the catch
+// in openVaultWithPassword. Asking for two secrets to fix one problem is a
+// worse experience for no extra safety: the recovery code already proves
+// ownership of the journal.
+export async function recoverWithCode(userId, code) {
   state.busy = true
   state.error = ''
 
   const { row } = await fetchKeyRow()
   if (!row) {
     state.busy = false
-    return { success: false, error: 'No journal key found for this account.' }
+    const message = 'No journal key found for this account.'
+    state.error = message
+    return { success: false, error: message }
   }
 
   try {
-    const key = await unwrapDataKey(
+    // AES-GCM authenticates, so a wrong code throws here rather than handing
+    // back a key that decrypts to nonsense.
+    dataKey = await unwrapDataKey(
       { salt: row.recovery_salt, iv: row.recovery_iv, key: row.recovery_key },
       normalizeRecoveryCode(code),
     )
 
-    const rewrapped = await wrapDataKey(key, newPassword)
-    const { error } = await supabase
-      .from('journal_keys')
-      .update({
-        passphrase_salt: rewrapped.salt,
-        passphrase_iv: rewrapped.iv,
-        passphrase_key: rewrapped.key,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', userId)
-
-    if (error) throw error
-
-    dataKey = key
-    await cacheDataKey(userId, key)
+    await cacheDataKey(userId, dataKey)
     state.status = 'ready'
     state.busy = false
     return { success: true }
   } catch {
     state.busy = false
-    const message = 'That recovery code is not right.'
+    const message = 'That recovery code is not right. Check for typos and try again.'
     state.error = message
     return { success: false, error: message }
   }

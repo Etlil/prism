@@ -1,7 +1,13 @@
 import { reactive, readonly, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
-import { confirmRedirectUrl } from '@/lib/authRedirect'
-import { openVaultWithPassword, restoreVault, clearVault } from '@/composables/useVault'
+import { confirmRedirectUrl, resetRedirectUrl } from '@/lib/authRedirect'
+import {
+  openVaultWithPassword,
+  restoreVault,
+  clearVault,
+  rewrapForNewPassword,
+  vaultIsUnlocked,
+} from '@/composables/useVault'
 import { runSessionReset } from '@/composables/sessionReset'
 
 const state = reactive({
@@ -139,6 +145,80 @@ export function useAuth() {
     return { success: true }
   }
 
+  // Sends the "reset your password" email. Always reports success, even for an
+  // address with no account — telling a stranger which emails are registered
+  // here is a way of leaking who uses the app.
+  async function requestPasswordReset(email) {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: resetRedirectUrl(),
+    })
+
+    if (error && !/rate limit/i.test(error.message)) {
+      return { success: true }
+    }
+    if (error) return { success: false, error: friendlyAuthError(error) }
+    return { success: true }
+  }
+
+  // Sets a new password. Called from the reset page, where the recovery link
+  // has already established a session.
+  //
+  // The journal key is wrapped by the password, so changing the password
+  // orphans it. If the key is still open in this browser it gets rewrapped
+  // here and nothing is lost. If it isn't — a reset opened on a different
+  // device — the recovery code in Settings is the only way back to old
+  // entries, and the caller is told so rather than finding out later.
+  async function updatePassword(newPassword) {
+    const hadKey = vaultIsUnlocked()
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) return { success: false, error: friendlyAuthError(error) }
+
+    if (hadKey && state.user?.id) {
+      await rewrapForNewPassword(state.user.id, newPassword)
+      return { success: true, journalKept: true }
+    }
+    return { success: true, journalKept: false }
+  }
+
+  // Permanent. Removes every row and every uploaded photo, then the account.
+  //
+  // Order matters: the storage files have to go FIRST, while the session still
+  // exists. Once auth.users is gone the token is dead and the bucket would
+  // refuse the delete, leaving orphaned photos nobody can reach or remove.
+  async function deleteAccount() {
+    const userId = state.user?.id
+    if (!userId) return { success: false, error: 'You are not signed in.' }
+
+    // Paths come from the photos table rather than by listing the bucket —
+    // exact, and it avoids walking a folder per day.
+    const { data: photos } = await supabase.from('photos').select('storage_path')
+
+    if (photos?.length) {
+      const paths = photos.map((p) => p.storage_path).filter(Boolean)
+      // Not fatal if this fails — better to finish deleting the account than to
+      // stop halfway because a file was already missing.
+      if (paths.length) await supabase.storage.from('journal-photos').remove(paths)
+    }
+
+    const { error } = await supabase.rpc('delete_own_account')
+    if (error) {
+      return {
+        success: false,
+        error:
+          error.code === 'PGRST202'
+            ? 'The delete_own_account function is missing — run supabase/delete_account.sql.'
+            : error.message,
+      }
+    }
+
+    // The account is gone; this just clears what the browser is still holding.
+    clearVault(userId)
+    await supabase.auth.signOut()
+    await applySession(null)
+    return { success: true }
+  }
+
   async function logout() {
     // Cleared before signOut, while the user id is still known — it is part of
     // the cache key.
@@ -184,5 +264,15 @@ export function useAuth() {
     return { success: true }
   }
 
-  return { auth: readonly(state), displayName, login, signup, logout, updateDisplayName }
+  return {
+    auth: readonly(state),
+    displayName,
+    login,
+    signup,
+    logout,
+    updateDisplayName,
+    requestPasswordReset,
+    updatePassword,
+    deleteAccount,
+  }
 }

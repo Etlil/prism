@@ -148,7 +148,7 @@ async function handleSubmit() {
   border: none;
   border-radius: var(--radius-sm);
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;

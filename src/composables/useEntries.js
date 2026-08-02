@@ -1,4 +1,4 @@
-import { reactive, readonly } from 'vue'
+import { reactive, readonly, ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/composables/useAuth'
 import { useMoods } from '@/composables/useMoods'
@@ -11,7 +11,8 @@ import { onSessionReset } from '@/composables/sessionReset'
 // copy, so the dashboard grid and the journal page can't disagree about what a
 // day holds.
 
-export const MAX_PHOTOS = 5
+// Cards per day. A card is an entry: a journal, optionally with a photo.
+export const MAX_ENTRIES = 5
 const BUCKET = 'journal-photos'
 
 // Signed URLs are minted with this lifetime. Long enough to browse a day
@@ -43,6 +44,11 @@ function currentUserId() {
   const { auth } = useAuth()
   return auth.user?.id ?? null
 }
+
+// Bumped every time a mood is written. useStreak watches it, because the
+// streak and the week strip are derived from a plain object (state.byDate)
+// whose nested edits don't always register as a dependency on their own.
+export const dayLoggedAt = ref(0)
 
 export const READ_ONLY_MESSAGE = 'Only today can be edited. Other days are read-only.'
 
@@ -119,7 +125,9 @@ export async function signPhotosFor(isoDate) {
   const entry = state.byDate[isoDate]
   if (!entry?.photos.length) return
 
-  const unsigned = entry.photos.filter((p) => !p.url)
+  // storage_path is null on cards that have no picture — asking Storage to
+  // sign a null path errors and takes the whole day's images down with it.
+  const unsigned = entry.photos.filter((p) => p.storage_path && !p.url)
   if (!unsigned.length) return
 
   const { data, error } = await supabase.storage
@@ -194,7 +202,9 @@ export async function setDayMood(isoDate, moodId) {
   if (blocked) return blocked
 
   const current = state.byDate[isoDate]?.mood_id ?? null
-  return patchEntry(isoDate, { mood_id: current === moodId ? null : moodId })
+  const result = await patchEntry(isoDate, { mood_id: current === moodId ? null : moodId })
+  if (result.success) dayLoggedAt.value++
+  return result
 }
 
 // The journal belongs to a photo, not to the day — three photos on one day
@@ -265,6 +275,92 @@ function fileExtension(file) {
   return file.type?.split('/')[1] || 'jpg'
 }
 
+// Adds an empty card — no picture, just somewhere to write. A photo can be
+// attached to it later with attachPhoto.
+export async function addEntry(isoDate) {
+  const blocked = blockedDate(isoDate)
+  if (blocked) return blocked
+
+  const userId = currentUserId()
+  if (!userId) return { success: false, error: 'You are not signed in.' }
+
+  const entry = await ensureEntry(isoDate)
+  if (!entry) return { success: false, error: state.error }
+  if (entry.photos.length >= MAX_ENTRIES) {
+    return { success: false, error: `That's the ${MAX_ENTRIES}-entry limit for one day.` }
+  }
+
+  state.saving = true
+  const { data, error } = await supabase
+    .from('photos')
+    .insert({ entry_id: entry.id, user_id: userId, sort_order: entry.photos.length })
+    .select()
+    .single()
+  state.saving = false
+
+  if (error) {
+    state.error = friendlyError(error)
+    return { success: false, error: state.error }
+  }
+
+  entry.photos.push({ ...data, journal_title_plain: '', journal_text_plain: '' })
+  return { success: true, id: data.id }
+}
+
+// Puts a picture on a card that didn't have one.
+export async function attachPhoto(isoDate, photoId, file) {
+  const blocked = blockedDate(isoDate)
+  if (blocked) return blocked
+
+  const userId = currentUserId()
+  if (!userId) return { success: false, error: 'You are not signed in.' }
+
+  const photo = state.byDate[isoDate]?.photos.find((p) => p.id === photoId)
+  if (!photo) return { success: false, error: 'Entry not found.' }
+
+  state.saving = true
+  state.error = ''
+
+  const compressed = await compressImage(file)
+  const path = `${userId}/${isoDate}/${crypto.randomUUID()}.${fileExtension(compressed)}`
+
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, compressed, { contentType: compressed.type, upsert: false })
+
+  if (uploadError) {
+    state.saving = false
+    state.error = friendlyError(uploadError)
+    return { success: false, error: state.error }
+  }
+
+  const { data, error } = await supabase
+    .from('photos')
+    .update({ storage_path: path })
+    .eq('id', photoId)
+    .select()
+    .single()
+
+  if (error) {
+    // Don't leave a file in the bucket that no row points at.
+    await supabase.storage.from(BUCKET).remove([path])
+    state.saving = false
+    state.error = friendlyError(error)
+    return { success: false, error: state.error }
+  }
+
+  // Keeps the decrypted journal, which isn't a database column.
+  Object.assign(photo, data, {
+    journal_title_plain: photo.journal_title_plain,
+    journal_text_plain: photo.journal_text_plain,
+    url: null,
+  })
+
+  state.saving = false
+  await signPhotosFor(isoDate)
+  return { success: true }
+}
+
 export async function addPhotos(isoDate, files) {
   const blocked = blockedDate(isoDate)
   if (blocked) return blocked
@@ -275,7 +371,7 @@ export async function addPhotos(isoDate, files) {
   const entry = await ensureEntry(isoDate)
   if (!entry) return { success: false, error: state.error }
 
-  const room = MAX_PHOTOS - entry.photos.length
+  const room = MAX_ENTRIES - entry.photos.length
   const chosen = Array.from(files).slice(0, Math.max(0, room))
   if (!chosen.length) return { success: true }
 
@@ -398,7 +494,11 @@ export async function setPhotoMood(isoDate, photoId, moodId) {
   const photo = entry?.photos.find((p) => p.id === photoId)
   if (!photo) return { success: false, error: 'Photo not found.' }
 
-  return patchPhoto(isoDate, photoId, { mood_id: photo.mood_id === moodId ? null : moodId })
+  const result = await patchPhoto(isoDate, photoId, {
+    mood_id: photo.mood_id === moodId ? null : moodId,
+  })
+  if (result.success) dayLoggedAt.value++
+  return result
 }
 
 // ── reading ────────────────────────────────────────────────────────────────
@@ -416,6 +516,25 @@ export function moodColorsFor(isoDate) {
   return ids.filter(Boolean).map((id) => moodById(id)?.color_hex).filter(Boolean)
 }
 
+// Every mood object recorded that day — the day's own mood plus each
+// mood-tagged photo. moodColorsFor is the colour-only version of this.
+export function moodsFor(isoDate) {
+  const entry = state.byDate[isoDate]
+  if (!entry) return []
+
+  const { moodById } = useMoods()
+  const ids = [entry.mood_id, ...entry.photos.map((p) => p.mood_id)]
+
+  return ids.filter(Boolean).map((id) => moodById(id)).filter(Boolean)
+}
+
+// The 1–5 scores behind those moods, for the chart's y-axis. Moods created
+// before the score column existed fall back to 3 (okay) rather than dropping
+// the day off the chart entirely.
+export function scoresFor(isoDate) {
+  return moodsFor(isoDate).map((mood) => mood.score ?? 3)
+}
+
 export function isLogged(isoDate) {
   return moodColorsFor(isoDate).length > 0
 }
@@ -431,7 +550,7 @@ export function clearError() {
 export function useEntries() {
   return {
     entries: readonly(state),
-    MAX_PHOTOS,
+    MAX_ENTRIES,
     loadYear,
     signPhotosFor,
     decryptEntry,
@@ -443,6 +562,8 @@ export function useEntries() {
     setPhotoCaption,
     setPhotoMood,
     moodColorsFor,
+    moodsFor,
+    scoresFor,
     isLogged,
     isEditable,
     getEntry,
