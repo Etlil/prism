@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/composables/useAuth'
 import { useMoods } from '@/composables/useMoods'
 import { todayIso } from '@/lib/calendar'
+import { isValidIsoDate } from '@/lib/dates'
 import { encryptOrThrow, decryptIfPossible, vaultIsUnlocked } from '@/composables/useVault'
 import { compressImage } from '@/lib/image'
 import { onSessionReset } from '@/composables/sessionReset'
@@ -50,24 +51,18 @@ function currentUserId() {
 // whose nested edits don't always register as a dependency on their own.
 export const dayLoggedAt = ref(0)
 
-export const READ_ONLY_MESSAGE = 'Only today can be edited. Other days are read-only.'
+export const READ_ONLY_MESSAGE = 'Choose today or a past date to record an entry.'
 
-// Only the current day is writable. Enforced here rather than only in the UI,
-// so a stale page left open overnight can't keep writing to what is now
-// yesterday — every mutator below goes through this first.
-//
-// Deliberately NOT a database CHECK on entry_date = current_date: Postgres
-// would evaluate that in the server's timezone, and at UTC+8 the user's "today"
-// is a day ahead of UTC for eight hours out of every twenty-four, so valid
-// evening writes would be rejected.
+// Allow catching up on missed days, using the user's local calendar date.
+// Every mutator checks this too, so future dates stay read-only.
 function blockedDate(isoDate) {
-  if (isoDate === todayIso()) return null
+  if (isEditable(isoDate)) return null
   state.error = READ_ONLY_MESSAGE
   return { success: false, error: READ_ONLY_MESSAGE }
 }
 
 export function isEditable(isoDate) {
-  return isoDate === todayIso()
+  return isValidIsoDate(isoDate) && isoDate <= todayIso()
 }
 
 function friendlyError(error) {
@@ -85,9 +80,18 @@ function friendlyError(error) {
 // One round trip for the whole year. `photos(*)` is PostgREST's embed syntax —
 // it follows the foreign key from photos.entry_id and nests the rows, so this
 // is a join, not 365 follow-up queries.
-export async function loadYear(year, { force = false } = {}) {
+// Queue year changes so a quick switch across December/January never skips
+// loading the newly selected year while another request is finishing.
+let yearLoad = Promise.resolve()
+
+export function loadYear(year, options = {}) {
+  const request = yearLoad.then(() => fetchYear(year, options))
+  yearLoad = request.catch(() => {})
+  return request
+}
+
+async function fetchYear(year, { force = false } = {}) {
   if (!currentUserId()) return
-  if (state.loading) return
   if (state.year === year && !force) return
 
   state.loading = true
@@ -448,7 +452,12 @@ export async function removePhoto(isoDate, photoId) {
   // Row first, file second. If this fails the file is orphaned but nothing in
   // the app points at it — the reverse order would leave a row whose image is
   // permanently missing.
-  await supabase.storage.from(BUCKET).remove([photo.storage_path])
+  //
+  // A card with no picture has nothing in the bucket to remove, and asking
+  // Storage to delete a null path errors.
+  if (photo.storage_path) {
+    await supabase.storage.from(BUCKET).remove([photo.storage_path])
+  }
 
   entry.photos.splice(index, 1)
   state.saving = false
@@ -557,6 +566,8 @@ export function useEntries() {
     decryptLoadedEntries,
     setDayMood,
     savePhotoJournal,
+    addEntry,
+    attachPhoto,
     addPhotos,
     removePhoto,
     setPhotoCaption,

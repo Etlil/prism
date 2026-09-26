@@ -3,9 +3,7 @@ import { toIsoDate } from '@/lib/dates'
 // What's left of fakeYear.js once the fake moods are gone: just the calendar
 // scaffold the grid is drawn on. The moods now come from the database.
 
-// A function, not a constant: only today may be edited, so a value frozen at
-// module load would lock you out of the new day if the app were left open
-// across midnight — and leave yesterday editable.
+// Read the local date each time so tomorrow becomes writable after midnight.
 export function todayIso() {
   return toIsoDate(new Date())
 }

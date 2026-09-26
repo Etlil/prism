@@ -13,7 +13,7 @@ const { activeMoods, loadMoods } = useMoods()
 // setDayMood is the same call the journal page's "How was this day?" makes, and
 // useEntries is shared module state — so a mood set here shows up there (and in
 // the pixel) with nothing to keep in sync.
-const { entries, loadYear, moodColorsFor, setDayMood, clearError } = useEntries()
+const { entries, loadYear, moodColorsFor, setDayMood, isEditable, clearError } = useEntries()
 const { currentStreak } = useStreak()
 
 const year = buildYear(currentYear)
@@ -55,24 +55,24 @@ function colorsFor(day) {
   return moodColorsFor(day.isoDate)
 }
 
-// --- Tap any pixel to log today --------------------------------------------
-//
-// Every cell opens TODAY, not the day that was tapped. Only today can be
-// written to, so opening a past pixel just produced a read-only dead end —
-// this turns the whole grid into one big "how was today?" button instead.
-// Browsing older days still lives on the journal page, which has a date strip
-// built for it.
-
+// The sheet follows the tapped pixel, including days the user missed.
 const sheetOpen = ref(false)
+const selectedDate = ref(today)
+const editable = computed(() => isEditable(selectedDate.value))
 
-const todayEntry = computed(() => entries.byDate[today] ?? null)
-const todayMoodId = computed(() => todayEntry.value?.mood_id ?? null)
+function openDay(day) {
+  if (!day) return
+  selectedDate.value = day.isoDate
+  sheetOpen.value = true
+}
 
-// Every mood recorded today — the day mood plus each photo's — as objects
-// rather than colours, so the sheet can name them.
-const todayMoods = computed(() => {
-  if (!todayEntry.value) return []
-  const ids = [todayEntry.value.mood_id, ...todayEntry.value.photos.map((p) => p.mood_id)]
+const selectedEntry = computed(() => entries.byDate[selectedDate.value] ?? null)
+const selectedMoodId = computed(() => selectedEntry.value?.mood_id ?? null)
+
+// Include the day mood and photo moods in the selected pixel's summary.
+const selectedMoods = computed(() => {
+  if (!selectedEntry.value) return []
+  const ids = [selectedEntry.value.mood_id, ...selectedEntry.value.photos.map((p) => p.mood_id)]
   return ids
     .filter(Boolean)
     .map((id) => activeMoods.value.find((m) => m.id === id))
@@ -80,7 +80,7 @@ const todayMoods = computed(() => {
 })
 
 async function pickMood(moodId) {
-  await setDayMood(today, moodId)
+  await setDayMood(selectedDate.value, moodId)
 }
 
 // Bound to the window because the sheet is a plain div, which can't receive key
@@ -145,7 +145,7 @@ function labelFor(day) {
             :is-today="cell?.isoDate === today"
             :label="labelFor(cell)"
             :disabled="!cell"
-            @click="sheetOpen = true"
+            @click="openDay(cell)"
           />
         </div>
       </div>
@@ -153,15 +153,13 @@ function labelFor(day) {
 
     <MoodChart />
 
-    <!-- Tapping any pixel opens this, always for today. The mood picker writes
-         entries.mood_id — the same field the journal page's "How was this
-         day?" sets, so the two stay in step on their own. -->
+    <!-- The sheet and journal both save to the selected date. -->
     <div v-if="sheetOpen" class="overlay" @click.self="sheetOpen = false">
       <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="day-sheet-title">
         <header class="sheet-head">
           <div>
-            <h2 id="day-sheet-title">How was today?</h2>
-            <p class="sheet-date">{{ formatMediumDate(today) }}</p>
+            <h2 id="day-sheet-title">{{ selectedDate === today ? 'How was today?' : 'How was this day?' }}</h2>
+            <p class="sheet-date">{{ formatMediumDate(selectedDate) }}</p>
           </div>
           <button type="button" class="close" aria-label="Close" @click="sheetOpen = false">
             ×
@@ -174,32 +172,32 @@ function labelFor(day) {
             :key="mood.id"
             type="button"
             class="mood-btn"
-            :class="{ active: todayMoodId === mood.id }"
+            :class="{ active: selectedMoodId === mood.id }"
             :title="mood.label"
-            :disabled="entries.saving"
-            :style="todayMoodId === mood.id ? { borderColor: mood.color_hex } : null"
+            :disabled="!editable || entries.loading || entries.saving"
+            :style="selectedMoodId === mood.id ? { borderColor: mood.color_hex } : null"
             @click="pickMood(mood.id)"
           >
             {{ mood.emoji }}
           </button>
         </div>
 
-        <p class="sheet-note">Tap the same mood again to clear it.</p>
+        <p class="sheet-note">{{ editable ? 'Tap the same mood again to clear it.' : 'This day has not arrived yet.' }}</p>
 
         <!-- Photo moods are part of the pixel too, so the sheet has to explain
              the slices that aren't the day mood. -->
-        <div v-if="todayMoods.length" class="recorded">
-          <span class="recorded-label">In today's pixel</span>
+        <div v-if="selectedMoods.length" class="recorded">
+          <span class="recorded-label">In this day's pixel</span>
           <ul class="chips">
-            <li v-for="(mood, i) in todayMoods" :key="i" class="chip">
+            <li v-for="(mood, i) in selectedMoods" :key="i" class="chip">
               <span class="dot" :style="{ background: mood.color_hex }"></span>
               {{ mood.emoji }} {{ mood.label }}
             </li>
           </ul>
         </div>
 
-        <RouterLink class="journal-link" :to="{ name: 'journal' }" @click="sheetOpen = false">
-          Add photos and write about today →
+        <RouterLink class="journal-link" :to="{ name: 'journal', query: { date: selectedDate } }" @click="sheetOpen = false">
+          {{ editable ? 'Add photos and write about this day' : 'View this day' }} →
         </RouterLink>
       </div>
     </div>

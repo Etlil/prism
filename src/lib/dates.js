@@ -29,6 +29,14 @@ export function fromIsoDate(iso) {
   return new Date(year, month - 1, day)
 }
 
+export function isValidIsoDate(iso) {
+  return (
+    typeof iso === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(iso) &&
+    toIsoDate(fromIsoDate(iso)) === iso
+  )
+}
+
 export function daysInMonth(year, month) {
   return new Date(year, month + 1, 0).getDate()
 }

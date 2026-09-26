@@ -1,11 +1,12 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import DateStrip from '@/components/DateStrip.vue'
 import PolaroidPhoto from '@/components/PolaroidPhoto.vue'
 import { useMoods } from '@/composables/useMoods'
 import { useEntries } from '@/composables/useEntries'
 import { useVault } from '@/composables/useVault'
-import { toIsoDate } from '@/lib/dates'
+import { toIsoDate, fromIsoDate, isValidIsoDate } from '@/lib/dates'
 
 const { activeMoods, loadMoods } = useMoods()
 // Signing in opens the journal with no prompt. This is false only when the key
@@ -29,7 +30,11 @@ const {
   clearError,
 } = useEntries()
 
-const selectedDate = ref(toIsoDate(new Date()))
+const route = useRoute()
+const selectedDate = ref(
+  isValidIsoDate(route.query.date) ? route.query.date : toIsoDate(new Date()),
+)
+const loadingDay = ref(false)
 const fileInput = ref(null)
 const index = ref(0)
 const uploading = ref(false)
@@ -42,9 +47,12 @@ const remaining = computed(() => MAX_ENTRIES - photos.value.length)
 const currentPhoto = computed(() => photos.value[index.value])
 const dayMoodId = computed(() => entry.value?.mood_id ?? null)
 
-// Only today can be written to. Everything else is browsable but locked.
+// Past days stay open so a missed entry can be added later.
 const editable = computed(() => isEditable(selectedDate.value))
-const isPast = computed(() => selectedDate.value < toIsoDate(new Date()))
+const canWrite = computed(
+  () => editable.value && !loadingDay.value && !entries.loading &&
+    entries.year === fromIsoDate(selectedDate.value).getFullYear(),
+)
 
 // Each photo carries its own journal, so these follow the photo being viewed
 // rather than the day.
@@ -65,24 +73,32 @@ const journalLocked = computed(
         currentPhoto.value.journal_text_plain === null)),
 )
 
-onMounted(async () => {
-  await Promise.all([loadMoods(), loadYear(new Date().getFullYear())])
-  await Promise.all([signPhotosFor(selectedDate.value), decryptEntry(selectedDate.value)])
-})
+onMounted(loadMoods)
 
 // Start from the first photo whenever the day changes, then fetch signed URLs
 // and decrypt that day's journal — both are done per-day rather than for the
 // whole year.
-watch(selectedDate, async (iso) => {
+watch(selectedDate, async (iso, _, onCleanup) => {
+  let cancelled = false
+  onCleanup(() => { cancelled = true })
   index.value = 0
-  await Promise.all([signPhotosFor(iso), decryptEntry(iso)])
-})
+  loadingDay.value = true
+  try {
+    await loadYear(fromIsoDate(iso).getFullYear())
+    if (cancelled) return
+    await Promise.all([signPhotosFor(iso), decryptEntry(iso)])
+  } finally {
+    if (!cancelled) loadingDay.value = false
+  }
+}, { immediate: true })
 
 // Creates a blank card and jumps to it, so the next thing you see is the thing
 // you just made.
 async function handleAddEntry() {
-  const result = await addEntry(selectedDate.value)
-  if (result.success) index.value = photos.value.length - 1
+  if (!canWrite.value) return
+  const date = selectedDate.value
+  const result = await addEntry(date)
+  if (result.success && selectedDate.value === date) index.value = photos.value.length - 1
 }
 
 // The file picker is shared by every card; this remembers which one asked.
@@ -122,7 +138,7 @@ function step(offset) {
         <button
           type="button"
           class="add-btn"
-          :disabled="!editable || remaining === 0 || entries.saving"
+          :disabled="!canWrite || remaining === 0 || entries.saving"
           @click="handleAddEntry"
         >
           {{ !editable ? 'Locked' : remaining === 0 ? 'Limit reached' : 'Add entry' }}
@@ -158,9 +174,9 @@ function step(offset) {
     <DateStrip v-model="selectedDate" />
 
     <p v-if="!editable" class="locked-note">
-      {{ isPast ? 'This day is closed.' : 'This day has not arrived yet.' }}
-      You can only record today.
+      This day has not arrived yet. Choose today or a past date to record an entry.
     </p>
+    <p v-else class="locked-note">Missed a day? Choose its date above, then add your entry.</p>
 
     <!-- The day's own mood, separate from the per-photo ones. Without this a
          day with no photo could never be logged, and the streak would break
@@ -175,7 +191,7 @@ function step(offset) {
           class="day-mood-btn"
           :class="{ active: dayMoodId === mood.id }"
           :title="mood.label"
-          :disabled="!editable"
+          :disabled="!canWrite || entries.saving"
           :style="dayMoodId === mood.id ? { borderColor: mood.color_hex } : null"
           @click="setDayMood(selectedDate, mood.id)"
         >
@@ -184,7 +200,8 @@ function step(offset) {
       </div>
     </div>
 
-    <div v-if="currentPhoto" class="viewer">
+    <p v-if="loadingDay || entries.loading" class="empty">Loading…</p>
+    <div v-else-if="currentPhoto" class="viewer">
       <div class="stage">
         <button
           type="button"
@@ -203,7 +220,7 @@ function step(offset) {
             :journal-title="journalTitle"
             :journal-text="journalText"
             :journal-locked="journalLocked"
-            :readonly="!editable"
+            :readonly="!canWrite"
             :uploading="uploading"
             @add-photo="fileInput.click()"
             @remove="removePhoto(selectedDate, currentPhoto.id)"
@@ -241,9 +258,9 @@ function step(offset) {
       </p>
     </div>
 
-    <p v-else-if="entries.loading" class="empty">Loading…</p>
-    <p v-else-if="!editable" class="empty">No photos were added on this day.</p>
-    <p v-else-if="!editable" class="empty">Nothing was written on this day.</p>
+    <!-- A card may be a photo, a journal, or both, so one message covers a
+         future day that has none of them. -->
+    <p v-else-if="!editable" class="empty">Nothing was recorded on this day.</p>
     <p v-else class="empty">
       Nothing here yet. Add an entry — a photo is optional, writing is the point.
     </p>
